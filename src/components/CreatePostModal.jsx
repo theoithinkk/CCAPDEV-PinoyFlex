@@ -56,7 +56,7 @@ export default function CreatePostModal({ onClose, onCreate }) {
 
   return (
     <div className="modal-backdrop" onMouseDown={onClose} role="dialog" aria-modal="true">
-      <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="modal modal-create" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2 className="modal-title">Create Post</h2>
           <button className="modal-x" onClick={onClose} aria-label="Close">✕</button>

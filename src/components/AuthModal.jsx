@@ -53,7 +53,7 @@ export default function AuthModal({ mode, onClose, onSwitchMode, onSuccess }) {
 
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
-      <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="modal modal-auth" onMouseDown={(e) => e.stopPropagation()}>
         <div className="modal-head">
           <h2>{isLogin ? "Log in" : "Register"}</h2>
           <button className="modal-x" onClick={onClose}>✕</button>
