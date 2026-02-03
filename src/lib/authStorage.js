@@ -33,13 +33,14 @@ export function updateUser(oldUsername, updatedFields) {
 
   saveUsers(updatedUsers);
 
-  // update session if username changed
+  // update session if current user was updated
   const session = loadSession();
-  if (session?.username === oldUsername && updatedFields.username) {
-      saveSession({username: updatedFields.username ?? session.username,
+  if (session?.username === oldUsername) {
+    saveSession({
+      username: updatedFields.username ?? session.username,
       avatar: updatedFields.avatar ?? session.avatar
-      });
-}
+    });
+  }
 }
 
 export function saveUsers(users) {

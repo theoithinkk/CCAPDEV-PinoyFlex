@@ -1,13 +1,9 @@
-import { useState } from "react";
 import { useAuth } from "../hooks/useAuth";
-import { updateUser } from "../lib/authStorage";
+import { loadComments } from "../lib/commentsStorage";
+import { loadPosts } from "../lib/postsStorage";
 
 export default function Profile() {
-  const { session, isLoggedIn, login } = useAuth();
-
-  const [username, setUsername] = useState(session?.username || "");
-  const [avatar, setAvatar] = useState(session?.avatar || "/avatars/default.png");
-  const [avatarFile, setAvatarFile] = useState(null);
+  const { session, isLoggedIn } = useAuth();
 
   if (!isLoggedIn || !session) {
     return (
@@ -17,71 +13,66 @@ export default function Profile() {
     );
   }
 
-  function handleAvatarChange(e) {
-    const file = e.target.files[0];
-    if (!file) return;
+  const allPosts = loadPosts();
+  const posts = allPosts.filter((p) => p.author === session.username);
 
-    setAvatarFile(file);
-    setAvatar(URL.createObjectURL(file)); // preview only
-  }
-
-  function handleSave(e) {
-    e.preventDefault();
-
-    const newUsername = username.trim();
-    if (!newUsername) return;
-
-    updateUser(session.username, {
-      username: newUsername,
-      avatar
+  const comments = [];
+  allPosts.forEach((p) => {
+    const postComments = loadComments(p.id);
+    postComments.forEach((c) => {
+      if (c.author === session.username) {
+        comments.push({ ...c, postTitle: p.title });
+      }
     });
+  });
 
-    login(newUsername);
-
-    window.location.reload();
+  function timeAgo(ts) {
+    const diff = Date.now() - ts;
+    const mins = Math.floor(diff / 60000);
+    if (mins < 1) return "just now";
+    if (mins < 60) return `${mins}m ago`;
+    const hrs = Math.floor(mins / 60);
+    if (hrs < 24) return `${hrs}h ago`;
+    const days = Math.floor(hrs / 24);
+    return `${days}d ago`;
   }
 
   return (
-  <div className="block profile-edit-card">
-    <h2 className="profile-title">Edit Profile</h2>
+    <div className="block profile-edit-card">
+      <h2 className="profile-title">@{session.username}</h2>
 
-    <div className="profile-avatar-row">
-      <img
-        src={avatar}
-        alt=""
-        className="profile-avatar-lg"
-      />
+      <div className="profile-section">
+        <h3 className="profile-section-title">Your Posts ({posts.length})</h3>
+        {posts.length === 0 ? (
+          <div className="detail-muted">No posts yet.</div>
+        ) : (
+          <div className="profile-list">
+            {posts.map((p) => (
+              <a key={p.id} className="profile-item" href={`#/post/${p.id}`}>
+                <div className="profile-item-title">{p.title}</div>
+                <div className="profile-item-meta">{timeAgo(p.createdAt)}</div>
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
 
-      <label className="btn btn-outline avatar-upload-btn">
-        Change avatar
-        <input
-          type="file"
-          accept="image/*"
-          onChange={handleAvatarChange}
-          hidden
-        />
-      </label>
+      <div className="profile-section">
+        <h3 className="profile-section-title">Your Comments ({comments.length})</h3>
+        {comments.length === 0 ? (
+          <div className="detail-muted">No comments yet.</div>
+        ) : (
+          <div className="profile-list">
+            {comments.map((c) => (
+              <a key={c.id} className="profile-item" href={`#/post/${c.postId}`}>
+                <div className="profile-item-title">{c.postTitle}</div>
+                <div className="profile-item-body">{c.body}</div>
+                <div className="profile-item-meta">{timeAgo(c.createdAt)}</div>
+              </a>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
-
-    <div className="field">
-      <label className="field-label">Username</label>
-      <input
-        type="text"
-        value={username}
-        onChange={(e) => setUsername(e.target.value)}
-        placeholder="Enter username"
-      />
-    </div>
-
-    <div className="profile-actions">
-      <button
-        type="button"
-        className="btn btn-primary btn-save"
-        onClick={handleSave}
-      >
-        Save changes
-      </button>
-    </div>
-  </div>
-);
+  );
 }

@@ -6,6 +6,45 @@ import { addPost, deletePost, loadPosts } from "./lib/postsStorage";
 import { addComment, loadComments } from "./lib/commentsStorage";
 import Profile from "./components/Profile";
 
+const tagColorCache = new Map();
+
+function hslToRgb(h, s, l) {
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r = 0;
+  let g = 0;
+  let b = 0;
+
+  if (h >= 0 && h < 60) [r, g, b] = [c, x, 0];
+  else if (h >= 60 && h < 120) [r, g, b] = [x, c, 0];
+  else if (h >= 120 && h < 180) [r, g, b] = [0, c, x];
+  else if (h >= 180 && h < 240) [r, g, b] = [0, x, c];
+  else if (h >= 240 && h < 300) [r, g, b] = [x, 0, c];
+  else [r, g, b] = [c, 0, x];
+
+  return {
+    r: Math.round((r + m) * 255),
+    g: Math.round((g + m) * 255),
+    b: Math.round((b + m) * 255),
+  };
+}
+
+function getTagStyle(tag) {
+  if (!tag) return undefined;
+  if (!tagColorCache.has(tag)) {
+    const hue = Math.floor(Math.random() * 360);
+    const sat = 0.7 + Math.random() * 0.2;
+    const light = 0.42 + Math.random() * 0.28;
+    const { r, g, b } = hslToRgb(hue, sat, light);
+    const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+    const text = luminance < 0.55 ? "#fff" : "#111";
+    const bg = `rgb(${r}, ${g}, ${b})`;
+    tagColorCache.set(tag, { backgroundColor: bg, color: text });
+  }
+  return tagColorCache.get(tag);
+}
+
 
 export default function App() {
   /* ===== App boot ===== */
@@ -130,10 +169,18 @@ export default function App() {
       <header className="navstrip">
         <div className="navstrip-inner">
           <nav className="navlinks" aria-label="Primary">
-            <a className="navlink is-active" href="#/">Home</a>
-            <a className="navlink" href="#/explore">Explore</a>
-            <a className="navlink" href="#/trending">Trending</a>
-            <a className="navlink" href="#/popular">Popular</a>
+            <a className={"navlink" + (route === "#/" ? " is-active" : "")} href="#/">
+              Home
+            </a>
+            <a className={"navlink" + (route.startsWith("#/explore") ? " is-active" : "")} href="#/explore">
+              Explore
+            </a>
+            <a className={"navlink" + (route.startsWith("#/trending") ? " is-active" : "")} href="#/trending">
+              Trending
+            </a>
+            <a className={"navlink" + (route.startsWith("#/popular") ? " is-active" : "")} href="#/popular">
+              Popular
+            </a>
           </nav>
 
           <div className="nav-center">
@@ -345,6 +392,7 @@ function PostCard({
   images = [],
 }) {
   const timeText = createdAt ? timeAgo(createdAt) : meta;
+  const postHref = `#/post/${id}`;
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuDir, setMenuDir] = useState("up");
   const menuRef = useRef(null);
@@ -366,14 +414,49 @@ function PostCard({
     return () => cancelAnimationFrame(t);
   }, [menuOpen]);
 
+  function openPost() {
+    window.location.hash = postHref;
+  }
+
+  function handlePostKeyDown(e) {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      openPost();
+    }
+  }
+
   return (
-    <div className="post" role="article">
-      <a href={`#/post/${id}`} className="post-link" aria-label="Open post" />
+    <div
+      className="post"
+      role="article"
+      tabIndex={0}
+      aria-label={`Open post: ${title}`}
+      onClick={openPost}
+      onKeyDown={handlePostKeyDown}
+    >
 
       <div className="votes">
-        <button className="vote-btn upvote" type="button">▲</button>
+        <button
+          className="vote-btn upvote"
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+        >
+          ▲
+        </button>
         <div className="vote-count">{votes}</div>
-        <button className="vote-btn downvote" type="button">▼</button>
+        <button
+          className="vote-btn downvote"
+          type="button"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+        >
+          ▼
+        </button>
       </div>
 
       <div className="post-main">
@@ -420,18 +503,43 @@ function PostCard({
             role="menu"
             ref={menuRef}
           >
-            <button className="post-menu-item" type="button">
+            <button
+              className="post-menu-item"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            >
               Save
             </button>
-            <button className="post-menu-item" type="button">
+            <button
+              className="post-menu-item"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            >
               Hide
             </button>
-            <button className="post-menu-item" type="button">
+            <button
+              className="post-menu-item"
+              type="button"
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              }}
+            >
               Report
             </button>
           </div>
 
-          {tag && <div className="post-tag post-tag--corner">{tag}</div>}
+          {tag && (
+            <div className="post-tag post-tag--corner" style={getTagStyle(tag)}>
+              {tag}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -597,7 +705,9 @@ function PostDetail({ post, isLoggedIn, session, openLogin, onDeletePost, onUpda
         </div>
         <div className="detail-meta">
           by <strong>{post.author}</strong> · {timeAgo(post.createdAt)}
-          <span className="detail-tag">{post.tag}</span>
+          <span className="detail-tag" style={getTagStyle(post.tag)}>
+            {post.tag}
+          </span>
           <span className="detail-tag">{comments.length} comments</span>
         </div>
         {detailTotal > 0 && (

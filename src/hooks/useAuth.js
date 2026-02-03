@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import {
   clearSession,
   loadSession,
+  loadUsers,
   saveSession,
   seedUsersIfEmpty
 } from "../lib/authStorage";
@@ -17,7 +18,9 @@ export function useAuth() {
   const isLoggedIn = !!session?.username;
 
   function login(username) {
-    const next = { username };
+    const users = loadUsers();
+    const user = users.find((u) => u.username === username);
+    const next = { username, avatar: user?.avatar };
     saveSession(next);
     setSession(next);
   }
