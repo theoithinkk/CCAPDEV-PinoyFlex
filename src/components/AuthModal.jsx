@@ -26,30 +26,38 @@ export default function AuthModal({ mode, onClose, onSwitchMode, onSuccess }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  function submit(e) {
-    e.preventDefault();
-    setError("");
+function submit(e) {
+  e.preventDefault();
+  setError("");
 
-    const u = username.trim();
-    if (u.length < 3) return setError("Username too short");
-    if (password.length < 4) return setError("Password too short");
+  const u = username.trim();
+  if (u.length < 3) return setError("Username too short");
+  if (password.length < 4) return setError("Password too short");
 
-    const users = loadUsers();
-    const found = users.find(x => x.username === u);
+  const users = loadUsers();
+  const found = users.find(x => x.username === u);
 
-    if (isLogin) {
-      if (!found) return setError("User not found");
-      if (found.password !== password) return setError("Wrong password");
-      return onSuccess(u);
-    }
-
-    // signup
-    if (password !== confirm) return setError("Passwords do not match");
-    if (found) return setError("Username already exists");
-
-    saveUsers([...users, { username: u, password }]);
-    onSuccess(u);
+  if (isLogin) {
+    if (!found) return setError("User not found");
+    if (found.password !== password) return setError("Wrong password");
+    return onSuccess(u);
   }
+
+  // signup
+  if (password !== confirm) return setError("Passwords do not match");
+  if (found) return setError("Username already exists");
+
+  const newUser = {
+    id: crypto.randomUUID(),
+    username: u,
+    password,
+    avatar: "/avatars/default.png"
+  };
+
+  saveUsers([...users, newUser]);
+  onSuccess(u);
+}
+
 
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>

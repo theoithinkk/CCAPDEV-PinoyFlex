@@ -1,5 +1,10 @@
 import { useEffect, useState } from "react";
-import { clearSession, loadSession, saveSession, seedUsersIfEmpty } from "../lib/authStorage";
+import {
+  clearSession,
+  loadSession,
+  saveSession,
+  seedUsersIfEmpty
+} from "../lib/authStorage";
 
 export function useAuth() {
   const [session, setSession] = useState(null);
@@ -22,5 +27,16 @@ export function useAuth() {
     setSession(null);
   }
 
-  return { session, isLoggedIn, login, logout };
+  function updateSession(nextSession) {
+    saveSession(nextSession);
+    setSession(nextSession);
+  }
+
+  return {
+    session,
+    isLoggedIn,
+    login,
+    logout,
+    updateSession 
+  };
 }

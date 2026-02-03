@@ -4,6 +4,8 @@ import AuthModal from "./components/AuthModal";
 import CreatePostModal from "./components/CreatePostModal";
 import { addPost, deletePost, loadPosts } from "./lib/postsStorage";
 import { addComment, loadComments } from "./lib/commentsStorage";
+import Profile from "./components/Profile";
+
 
 export default function App() {
   /* ===== App boot ===== */
@@ -80,15 +82,12 @@ export default function App() {
   function handleCreate({ title, tag, body, images }) {
     const now = Date.now();
     const newPost = {
-      id: `p_${now}`,
-      title,
-      tag,
-      body,
-      images: images || [],
-      author: session.username,
-      createdAt: now,
-      votes: 0,
-      commentCount: 0,
+    id: `p_${now}`,
+    title,
+    body,
+    authorId: session.id, 
+    votes: 0,
+    commentCount: 0,
     };
 
     const next = addPost(newPost);
@@ -158,7 +157,9 @@ export default function App() {
               </>
             ) : (
               <>
-                <div className="session-pill">@{session.username}</div>
+                <a className="session-pill" href="#/profile">
+                  @{session.username}
+                </a>
                 <button className="btn btn-logout" type="button" onClick={logout}>
                   Logout
                 </button>
@@ -190,7 +191,9 @@ export default function App() {
 
           {/* ===== Main feed ===== */}
           <main className="feed">
-            {activePostId ? (
+              {route === "#/profile" ? (
+                <Profile />
+              ) : activePostId ? (
               <PostDetail
                 post={activePost}
                 isLoggedIn={isLoggedIn}
