@@ -1,12 +1,15 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "./hooks/useAuth";
 import AuthModal from "./components/AuthModal";
 import CreatePostModal from "./components/CreatePostModal";
-import { addPost, loadPosts } from "./lib/postsStorage";
+import { addPost, deletePost, loadPosts } from "./lib/postsStorage";
 import { addComment, loadComments } from "./lib/commentsStorage";
 
 export default function App() {
-  /* SORT LOGIC (not done) */
+  /* ===== App boot ===== */
+  const [appReady, setAppReady] = useState(false);
+
+  /* ===== Feed sorting (UI only) ===== */
   const [sortOpen, setSortOpen] = useState(false);
   const [sortBy, setSortBy] = useState("Best");
   const sortItems = useMemo(() => ["Best", "Hot", "Top", "New"], []);
@@ -16,11 +19,12 @@ export default function App() {
     setSortOpen(false);
   }
 
-  /* LOGIN REGISTRY AUTHORIZATION */
+  /* ===== Auth state ===== */
   const { session, isLoggedIn, login, logout } = useAuth();
 
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState("login"); // login | signup
+  const [toast, setToast] = useState("");
 
   function openLogin() {
     setAuthMode("login");
@@ -31,7 +35,7 @@ export default function App() {
     setAuthOpen(true);
   }
 
-  /* POSTS */
+  /* ===== Routing + posts ===== */
   const [posts, setPosts] = useState([]);
   const [route, setRoute] = useState(getRoute());
 
@@ -47,27 +51,40 @@ export default function App() {
   const activePost = activePostId ? posts.find((p) => p.id === activePostId) : null;
 
   useEffect(() => {
-    setPosts(loadPosts());
+    const start = performance.now();
+
+    const loaded = loadPosts();
+    setPosts(loaded);
+
+    const minMs = 600;
+    const elapsed = performance.now() - start;
+    const delay = Math.max(0, minMs - elapsed);
+
+    const t = setTimeout(() => setAppReady(true), delay);
+    return () => clearTimeout(t);
   }, []);
 
-  /* CREATE POST */
+
+  /* ===== Create post modal ===== */
   const [createOpen, setCreateOpen] = useState(false);
 
   function openCreatePost() {
     if (!isLoggedIn) {
+      setToast("You need to log in before creating a post.");
       openLogin();
       return;
     }
     setCreateOpen(true);
   }
 
-  function handleCreate({ title, tag, body }) {
+  function handleCreate({ title, tag, body, images }) {
     const now = Date.now();
     const newPost = {
       id: `p_${now}`,
       title,
       tag,
       body,
+      images: images || [],
       author: session.username,
       createdAt: now,
       votes: 0,
@@ -79,15 +96,28 @@ export default function App() {
     setCreateOpen(false);
   }
 
+  /* Lock background scroll when any modal is open */
   useEffect(() => {
     const anyOpen = authOpen || createOpen;
     document.body.style.overflow = anyOpen ? "hidden" : "";
     return () => (document.body.style.overflow = "");
   }, [authOpen, createOpen]);
 
+  /* ===== Render ===== */
   return (
-    <div className="app">
-      {/* HEADER */}
+    <div className={"app " + (appReady ? "app-ready" : "app-loading")}>
+      {!appReady && (
+        <div className="splash" role="status" aria-label="Loading">
+          <div className="splash-card">
+            <div className="splash-logo" aria-hidden="true" />
+            <div className="splash-title">
+              Pinoy<span className="splash-flex">Flex</span>
+            </div>
+            <div className="splash-spinner" aria-hidden="true" />
+          </div>
+        </div>
+      )}
+      {/* ===== Header ===== */}
       <header className="brandbar">
         <div className="brandbar-inner">
           <div className="brand-logo" aria-hidden="true" />
@@ -97,7 +127,7 @@ export default function App() {
         </div>
       </header>
 
-      {/* NAVIGATION HEADER */}
+      {/* ===== Navigation ===== */}
       <header className="navstrip">
         <div className="navstrip-inner">
           <nav className="navlinks" aria-label="Primary">
@@ -138,10 +168,10 @@ export default function App() {
         </div>
       </header>
 
-      {/* PAGE SHELL */}
+      {/* ===== Page layout ===== */}
       <div className="shell">
         <div className="layout">
-          {/* LEFT */}
+          {/* ===== Left rail ===== */}
           <aside className="panel panel-left">
             <div className="block block-news">
               <h2>Current Fitness News</h2>
@@ -158,7 +188,7 @@ export default function App() {
             </div>
           </aside>
 
-          {/* CENTER FEED */}
+          {/* ===== Main feed ===== */}
           <main className="feed">
             {activePostId ? (
               <PostDetail
@@ -166,6 +196,11 @@ export default function App() {
                 isLoggedIn={isLoggedIn}
                 session={session}
                 openLogin={openLogin}
+                onDeletePost={(postId) => {
+                  const next = deletePost(postId);
+                  setPosts(next);
+                  window.location.hash = "#/";
+                }}
                 onUpdatePostCommentCount={(postId, count) => {
                   setPosts((prev) =>
                     prev.map((p) => (p.id === postId ? { ...p, commentCount: count } : p))
@@ -225,6 +260,7 @@ export default function App() {
                     votes={p.votes}
                     tag={p.tag}
                     commentCount={p.commentCount || 0}
+                    images={p.images || []}
                   />
                   ))
                 )}
@@ -232,7 +268,7 @@ export default function App() {
             )}
           </main>
 
-          {/* RIGHT */}
+          {/* ===== Right rail ===== */}
           <aside className="panel panel-right">
             <div className="block">
               <h3>Top Contributors</h3>
@@ -247,7 +283,7 @@ export default function App() {
         </div>
       </div>
 
-      {/* FOOTER */}
+      {/* ===== Footer ===== */}
       <footer className="site-footer">
         <div className="footer-inner">
           <div className="footer-left">
@@ -261,7 +297,12 @@ export default function App() {
         </div>
       </footer>
 
-      {/* AUTH MODAL */}
+      {/* ===== Auth modal ===== */}
+      {toast && (
+        <div className="toast" role="status" onAnimationEnd={() => setToast("")}>
+          {toast}
+        </div>
+      )}
       {authOpen && (
         <AuthModal
           mode={authMode}
@@ -274,7 +315,7 @@ export default function App() {
         />
       )}
 
-      {/* CREATE POST MODAL */}
+      {/* ===== Create post modal ===== */}
       {createOpen && (
         <CreatePostModal
           onClose={() => setCreateOpen(false)}
@@ -285,6 +326,9 @@ export default function App() {
   );
 }
 
+/* =========================
+   Post Card (feed preview)
+========================= */
 function PostCard({
   id,
   title,
@@ -294,54 +338,95 @@ function PostCard({
   commentCount = 0,
   preview = "",
   author = "",
-  createdAt = 0
+  createdAt = 0,
+  images = [],
 }) {
   const timeText = createdAt ? timeAgo(createdAt) : meta;
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuDir, setMenuDir] = useState("up");
+  const menuRef = useRef(null);
+  const moreBtnRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const t = requestAnimationFrame(() => {
+      const btn = moreBtnRef.current;
+      const menu = menuRef.current;
+      if (!btn || !menu) return;
+      const btnRect = btn.getBoundingClientRect();
+      const menuHeight = menu.offsetHeight || 140;
+      const spaceBelow = window.innerHeight - btnRect.bottom;
+      const spaceAbove = btnRect.top;
+      const nextDir = spaceBelow >= menuHeight || spaceBelow >= spaceAbove ? "down" : "up";
+      setMenuDir(nextDir);
+    });
+    return () => cancelAnimationFrame(t);
+  }, [menuOpen]);
 
   return (
     <div className="post" role="article">
       <a href={`#/post/${id}`} className="post-link" aria-label="Open post" />
 
-      {/* If you still want votes on the far left, keep this. Otherwise delete this whole block */}
       <div className="votes">
         <button className="vote-btn upvote" type="button">▲</button>
         <div className="vote-count">{votes}</div>
         <button className="vote-btn downvote" type="button">▼</button>
       </div>
 
-      {/* MAIN CONTENT AREA */}
       <div className="post-main">
-        {/* LEFT */}
         <div className="post-left">
-          <div className="post-title">{title}</div>
-
-          {preview && <div className="post-preview">{preview}</div>}
-
-          <div className="post-subline">
-            <span className="post-author">by {author || "user"}</span>
+          {/* username + icon + time ABOVE title */}
+          <div className="post-subline post-subline--top">
+            <span className="userchip" aria-hidden="true" />
+            <span className="post-author">{author || "user"}</span>
             <span className="dot">•</span>
             <span className="post-time">{timeText || "just now"}</span>
           </div>
 
+          <div className="post-title">{title}</div>
+
+          {preview && <div className="post-preview">{preview}</div>}
+
+          {/* ✅ one-image-at-a-time carousel (NO media-strip wrapper) */}
+          {images.length > 0 && <PostMedia images={images} />}
+
+          {/* comment count stays where it was */}
           <div className="post-comments">
             💬 <span className="post-comments-count">{commentCount}</span>
           </div>
         </div>
 
-        {/* RIGHT */}
         <div className="post-right">
-          <button
+                    <button
             className="post-more"
             type="button"
             aria-label="Post options"
+            aria-haspopup="menu"
+            aria-expanded={menuOpen}
+            ref={moreBtnRef}
             onClick={(e) => {
               e.preventDefault();
               e.stopPropagation();
-              alert("Options: Report / Save / Hide (later)");
+              setMenuOpen((v) => !v);
             }}
           >
             ⋯
           </button>
+          <div
+            className={"post-menu" + (menuOpen ? " show " : " ") + "open-" + menuDir}
+            role="menu"
+            ref={menuRef}
+          >
+            <button className="post-menu-item" type="button">
+              Save
+            </button>
+            <button className="post-menu-item" type="button">
+              Hide
+            </button>
+            <button className="post-menu-item" type="button">
+              Report
+            </button>
+          </div>
 
           {tag && <div className="post-tag post-tag--corner">{tag}</div>}
         </div>
@@ -350,16 +435,63 @@ function PostCard({
   );
 }
 
+/* =========================
+   Post media (feed carousel)
+========================= */
+function PostMedia({ images }) {
+  const [idx, setIdx] = useState(0);
+  const total = images.length;
 
+  function prev(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIdx((v) => (v - 1 + total) % total);
+  }
 
-function PostDetail({ post, isLoggedIn, session, openLogin, onUpdatePostCommentCount }) {
+  function next(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    setIdx((v) => (v + 1) % total);
+  }
+
+  return (
+    <div className="media-frame" aria-label="Post images">
+      <img
+        className="media-frame-img"
+        src={images[idx]}
+        alt={`Post image ${idx + 1} of ${total}`}
+        loading="lazy"
+      />
+
+      {total > 1 && (
+        <>
+          <button className="media-nav media-prev" type="button" onClick={prev} aria-label="Previous image">
+            ‹
+          </button>
+          <button className="media-nav media-next" type="button" onClick={next} aria-label="Next image">
+            ›
+          </button>
+
+          <div className="media-dots" aria-label="Image position">
+            {images.map((_, i) => (
+              <span key={i} className={"media-dot" + (i === idx ? " is-active" : "")} />
+            ))}
+          </div>
+        </>
+      )}
+    </div>
+  );
+}
+
+/* =========================
+   Post Detail (open post)
+========================= */
+function PostDetail({ post, isLoggedIn, session, openLogin, onDeletePost, onUpdatePostCommentCount }) {
   const [comments, setComments] = useState([]);
   const [text, setText] = useState("");
-
-  useEffect(() => {
-    if (!post) return;
-    setComments(loadComments(post.id));
-  }, [post?.id]);
+  const [detailIdx, setDetailIdx] = useState(0);
+  const [lightboxOpen, setLightboxOpen] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
 
   if (!post) {
     return (
@@ -399,17 +531,109 @@ function PostDetail({ post, isLoggedIn, session, openLogin, onUpdatePostCommentC
     onUpdatePostCommentCount(post.id, next.length);
   }
 
+  const images = post?.images || [];
+  const detailTotal = images.length;
+  const isOwner = isLoggedIn && session?.username === post.author;
+
+  function handleDeletePost() {
+    if (!isLoggedIn) {
+      openLogin();
+      return;
+    }
+    if (!isOwner) return;
+    onDeletePost(post.id);
+  }
+
+  function detailPrev(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (detailTotal < 2) return;
+    setDetailIdx((v) => (v - 1 + detailTotal) % detailTotal);
+  }
+
+  function detailNext(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (detailTotal < 2) return;
+    setDetailIdx((v) => (v + 1) % detailTotal);
+  }
+
   return (
     <div className="post-detail">
       <a className="btn btn-secondary" href="#/">← Back</a>
 
       <div className="detail-card">
-        <h2 className="detail-title">{post.title}</h2>
+        <div className="detail-head">
+          <h2 className="detail-title">{post.title}</h2>
+          <div className="detail-actions">
+                        <button
+              className="detail-more"
+              type="button"
+              aria-label="Post options"
+              aria-haspopup="menu"
+              aria-expanded={menuOpen}
+              onClick={() => setMenuOpen((v) => !v)}
+            >
+              ⋯
+            </button>
+            <div
+              className={"detail-menu" + (menuOpen ? " show" : "")}
+              role="menu"
+            >
+              <button className="detail-menu-item" type="button">
+                Save
+              </button>
+              <button className="detail-menu-item" type="button">
+                Hide
+              </button>
+              <button className="detail-menu-item" type="button">
+                Report
+              </button>
+            </div>
+          </div>
+        </div>
         <div className="detail-meta">
           by <strong>{post.author}</strong> · {timeAgo(post.createdAt)}
           <span className="detail-tag">{post.tag}</span>
           <span className="detail-tag">{comments.length} comments</span>
         </div>
+        {detailTotal > 0 && (
+          <div className="detail-media">
+            <div className="detail-media-frame" aria-label="Post images">
+              <button
+                className="detail-media-imgwrap"
+                type="button"
+                onClick={() => setLightboxOpen(true)}
+                aria-label="Open image"
+              >
+                <img
+                  className="detail-media-img"
+                  key={images[detailIdx] || detailIdx}
+                  src={images[detailIdx]}
+                  alt={`Post image ${detailIdx + 1} of ${detailTotal}`}
+                  loading="lazy"
+                />
+              </button>
+
+              {detailTotal > 1 && (
+                <>
+                  <button className="detail-media-nav detail-prev" type="button" onClick={detailPrev} aria-label="Previous image">
+                    ‹
+                  </button>
+                  <button className="detail-media-nav detail-next" type="button" onClick={detailNext} aria-label="Next image">
+                    ›
+                  </button>
+
+                  <div className="detail-media-dots" aria-label="Image position">
+                    {images.map((_, i) => (
+                      <span key={i} className={"detail-media-dot" + (i === detailIdx ? " is-active" : "")} />
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
+        )}
         <div className="detail-body">{post.body}</div>
       </div>
 
@@ -444,10 +668,40 @@ function PostDetail({ post, isLoggedIn, session, openLogin, onUpdatePostCommentC
           )}
         </div>
       </div>
+
+      {lightboxOpen && (
+        <div className="lightbox" role="dialog" aria-label="Image preview">
+          <button className="lightbox-backdrop" type="button" onClick={() => setLightboxOpen(false)} aria-label="Close" />
+          <div className="lightbox-body">
+            <img
+              className="lightbox-img"
+              key={`lightbox-${images[detailIdx] || detailIdx}`}
+              src={images[detailIdx]}
+              alt={`Post image ${detailIdx + 1} of ${detailTotal}`}
+            />
+            {detailTotal > 1 && (
+              <>
+                <button className="lightbox-nav lightbox-prev" type="button" onClick={detailPrev} aria-label="Previous image">
+                  ‹
+                </button>
+                <button className="lightbox-nav lightbox-next" type="button" onClick={detailNext} aria-label="Next image">
+                  ›
+                </button>
+              </>
+            )}
+            <button className="lightbox-close" type="button" onClick={() => setLightboxOpen(false)} aria-label="Close">
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
+/* =========================
+   Helpers
+========================= */
 function timeAgo(ts) {
   const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60000);
@@ -468,3 +722,16 @@ function parsePostIdFromHash(hash) {
   const m = hash.match(/^#\/post\/(.+)$/);
   return m ? m[1] : null;
 }
+
+
+
+
+
+
+
+
+
+
+
+
+

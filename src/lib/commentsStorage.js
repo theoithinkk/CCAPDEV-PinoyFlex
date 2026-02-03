@@ -41,3 +41,11 @@ export function addComment(postId, comment) {
 export function countComments(postId) {
   return loadComments(postId).length;
 }
+
+export function deleteCommentsForPost(postId) {
+  const map = loadAll();
+  if (map[postId]) {
+    delete map[postId];
+    saveAll(map);
+  }
+}

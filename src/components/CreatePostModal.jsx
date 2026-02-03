@@ -11,6 +11,9 @@ export default function CreatePostModal({ onClose, onCreate }) {
   const [customTag, setCustomTag] = useState("");
   const [error, setError] = useState("");
 
+  const [imageUrl, setImageUrl] = useState("");
+  const [images, setImages] = useState([]);
+
   // Close on Escape
   useEffect(() => {
     function onKey(e) {
@@ -26,6 +29,17 @@ export default function CreatePostModal({ onClose, onCreate }) {
       setTag(tags[0] || "General");
     }
   }, [tags, tag]);
+
+  function addImage() {
+    const url = imageUrl.trim();
+    if (!url) return;
+    setImages((prev) => [...prev, url]);
+    setImageUrl("");
+  }
+
+  function removeImage(idx) {
+    setImages((prev) => prev.filter((_, i) => i !== idx));
+  }
 
   function handleAddTag() {
     setError("");
@@ -51,7 +65,7 @@ export default function CreatePostModal({ onClose, onCreate }) {
     if (t.length < 5) return setError("Title must be at least 5 characters.");
     if (b.length < 10) return setError("Body must be at least 10 characters.");
 
-    onCreate({ title: t, tag, body: b });
+    onCreate({ title, tag, body, images });
   }
 
   return (
@@ -105,7 +119,38 @@ export default function CreatePostModal({ onClose, onCreate }) {
               rows={6}
             />
           </label>
+              <div className="field">
+                <label>Images (URL)</label>
 
+                <div className="img-addrow">
+                  <input
+                    value={imageUrl}
+                    onChange={(e) => setImageUrl(e.target.value)}
+                    placeholder="https://…"
+                  />
+                  <button className="btn btn-login" type="button" onClick={addImage}>
+                    Add
+                  </button>
+                </div>
+
+                {images.length > 0 && (
+                  <div className="img-chiprow">
+                    {images.map((url, i) => (
+                      <div className="img-chip" key={url + i}>
+                        <span className="img-chip-text">Image {i + 1}</span>
+                        <button
+                          className="img-chip-x"
+                          type="button"
+                          onClick={() => removeImage(i)}
+                          aria-label="Remove image"
+                        >
+                          ✕
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
           {error && <div className="form-error" role="alert">{error}</div>}
 
           <button className="btn btn-primary modal-submit" type="submit">

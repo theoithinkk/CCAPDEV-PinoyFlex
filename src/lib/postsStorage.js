@@ -21,3 +21,10 @@ export function addPost(newPost) {
   savePosts(next);
   return next;
 }
+
+export function deletePost(postId) {
+  const posts = loadPosts();
+  const next = posts.filter((p) => p.id !== postId);
+  savePosts(next);
+  return next;
+}
