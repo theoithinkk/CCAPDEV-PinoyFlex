@@ -1,4 +1,10 @@
-export default function Navbar({ isLoggedIn, session, onLoginClick, onSignupClick, onLogout }) {
+export default function Navbar({
+  isLoggedIn,
+  session,
+  onLoginClick,
+  onSignupClick,
+  onLogout
+}) {
   return (
     <header className="navstrip">
       <div className="navstrip-inner">
@@ -16,13 +22,27 @@ export default function Navbar({ isLoggedIn, session, onLoginClick, onSignupClic
         <div className="navactions">
           {!isLoggedIn ? (
             <>
-              <button className="btn btn-login" onClick={onLoginClick}>Log in</button>
-              <button className="btn btn-register" onClick={onSignupClick}>Register</button>
+              <button className="btn btn-login" onClick={onLoginClick}>
+                Log in
+              </button>
+              <button className="btn btn-register" onClick={onSignupClick}>
+                Register
+              </button>
             </>
           ) : (
             <>
-              <div className="session-pill">@{session.username}</div>
-              <button className="btn btn-logout" onClick={onLogout}>Logout</button>
+            <div className="nav-user">
+              <img
+                src={session.avatar || "/avatars/default.png"}
+                className="nav-avatar"
+                alt=""
+              />
+              <span>@{session.username}</span>
+            </div>
+
+              <button className="btn btn-logout" onClick={onLogout}>
+                Logout
+              </button>
             </>
           )}
         </div>

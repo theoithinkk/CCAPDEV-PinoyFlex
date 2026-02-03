@@ -12,22 +12,65 @@ export function loadUsers() {
   }
 }
 
+export function updateUser(oldUsername, updatedFields) {
+  const users = loadUsers();
+
+  // prevent duplicate usernames
+  if (
+    updatedFields.username &&
+    users.some(
+      u => u.username === updatedFields.username && u.username !== oldUsername
+    )
+  ) {
+    throw new Error("Username already exists");
+  }
+
+  const updatedUsers = users.map(u =>
+    u.username === oldUsername
+      ? { ...u, ...updatedFields }
+      : u
+  );
+
+  saveUsers(updatedUsers);
+
+  // update session if username changed
+  const session = loadSession();
+  if (session?.username === oldUsername && updatedFields.username) {
+      saveSession({username: updatedFields.username ?? session.username,
+      avatar: updatedFields.avatar ?? session.avatar
+      });
+}
+}
+
 export function saveUsers(users) {
   localStorage.setItem(LS_USERS, JSON.stringify(users));
 }
 
 export function seedUsersIfEmpty() {
-  const existing = loadUsers();
-  if (existing.length === 0) {
+  if (loadUsers().length === 0) {
     saveUsers([
-      { username: "theo", password: "1234" },
-      { username: "jane", password: "1234" },
-      { username: "mark", password: "1234" },
-      { username: "angel", password: "1234" },
-      { username: "admin", password: "admin" },
+      {
+        id: crypto.randomUUID(),
+        username: "theo",
+        password: "1234",
+        avatar: "/avatars/default.png"
+      },
+      {
+        id: crypto.randomUUID(),
+        username: "jane",
+        password: "1234",
+        avatar: "/avatars/default.png"
+      },
+      {
+        id: crypto.randomUUID(),
+        username: "admin",
+        password: "admin",
+        avatar: "/avatars/default.png"
+      }
     ]);
   }
 }
+
 
 export function loadSession() {
   const raw = localStorage.getItem(LS_SESSION);
@@ -47,3 +90,4 @@ export function saveSession(session) {
 export function clearSession() {
   localStorage.removeItem(LS_SESSION);
 }
+
