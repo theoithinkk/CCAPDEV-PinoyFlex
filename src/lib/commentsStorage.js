@@ -38,6 +38,15 @@ export function addComment(postId, comment) {
   return next;
 }
 
+export function deleteComment(postId, commentId) {
+  const map = loadAll();
+  const existing = Array.isArray(map[postId]) ? map[postId] : [];
+  const next = existing.filter((c) => c.id !== commentId);
+  map[postId] = next;
+  saveAll(map);
+  return next;
+}
+
 export function countComments(postId) {
   return loadComments(postId).length;
 }

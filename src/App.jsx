@@ -3,7 +3,7 @@ import { useAuth } from "./hooks/useAuth";
 import AuthModal from "./components/AuthModal";
 import CreatePostModal from "./components/CreatePostModal";
 import { addPost, deletePost, loadPosts } from "./lib/postsStorage";
-import { addComment, loadComments } from "./lib/commentsStorage";
+import { addComment, deleteComment, deleteCommentsForPost, loadComments } from "./lib/commentsStorage";
 import Profile from "./components/Profile";
 
 const tagColorCache = new Map();
@@ -76,6 +76,46 @@ export default function App() {
     setAuthOpen(true);
   }
 
+  /* ===== Badge verification (static demo) ===== */
+  const badgeOptions = useMemo(
+    () => ["225 lb Bench", "315 lb Squat", "405 lb Deadlift", "10 Strict Pullups"],
+    []
+  );
+  const [selectedBadge, setSelectedBadge] = useState("225 lb Bench");
+
+  /* ===== Search UI (static suggestions) ===== */
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchValue, setSearchValue] = useState("");
+  const searchWrapRef = useRef(null);
+  const recentSearches = useMemo(
+    () => ["Body recomposition", "Meal prep on a budget", "5x5 program", "Calisthenics PH"],
+    []
+  );
+  const trendingTopics = useMemo(
+    () => ["#BalikGym", "#DirtyBulk", "#UpperLower", "#HomeWorkout", "#CutSeason"],
+    []
+  );
+
+  const normalizedQuery = searchValue.trim().toLowerCase();
+  const filteredRecent = normalizedQuery
+    ? recentSearches.filter((item) => item.toLowerCase().includes(normalizedQuery))
+    : recentSearches;
+  const filteredTrending = normalizedQuery
+    ? trendingTopics.filter((item) => item.toLowerCase().includes(normalizedQuery))
+    : trendingTopics;
+
+  useEffect(() => {
+    if (!searchOpen) return;
+    function handleDocClick(event) {
+      if (!searchWrapRef.current) return;
+      if (!searchWrapRef.current.contains(event.target)) {
+        setSearchOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleDocClick);
+    return () => document.removeEventListener("mousedown", handleDocClick);
+  }, [searchOpen]);
+
   /* ===== Routing + posts ===== */
   const [posts, setPosts] = useState([]);
   const [route, setRoute] = useState(getRoute());
@@ -92,13 +132,19 @@ export default function App() {
   const activePost = activePostId ? posts.find((p) => p.id === activePostId) : null;
 
   useEffect(() => {
-    const start = performance.now();
+    const now = typeof performance !== "undefined" && performance.now ? () => performance.now() : () => Date.now();
+    const start = now();
 
-    const loaded = loadPosts();
+    let loaded = [];
+    try {
+      loaded = loadPosts();
+    } catch {
+      loaded = [];
+    }
     setPosts(loaded);
 
     const minMs = 600;
-    const elapsed = performance.now() - start;
+    const elapsed = now() - start;
     const delay = Math.max(0, minMs - elapsed);
 
     const t = setTimeout(() => setAppReady(true), delay);
@@ -184,12 +230,69 @@ export default function App() {
           </nav>
 
           <div className="nav-center">
-            <input
-              type="text"
-              className="nav-search"
-              placeholder="Search PinoyFlex"
-              aria-label="Search"
-            />
+            <div className="nav-search-wrap" ref={searchWrapRef}>
+              <input
+                type="text"
+                className="nav-search"
+                placeholder="Search PinoyFlex"
+                aria-label="Search"
+                value={searchValue}
+                onChange={(e) => setSearchValue(e.target.value)}
+                onFocus={() => setSearchOpen(true)}
+                onKeyDown={(e) => {
+                  if (e.key === "Escape") setSearchOpen(false);
+                }}
+              />
+              <div
+                className={"nav-search-panel" + (searchOpen ? " show" : "")}
+                role="listbox"
+                aria-label="Search suggestions"
+              >
+                <div className="search-section">
+                  <div className="search-section-title">Trending topics</div>
+                  {filteredTrending.length === 0 ? (
+                    <div className="search-empty">No matches yet.</div>
+                  ) : (
+                    filteredTrending.map((item) => (
+                      <button
+                        key={item}
+                        className="search-item"
+                        type="button"
+                        onClick={() => {
+                          setSearchValue(item);
+                          setSearchOpen(false);
+                        }}
+                      >
+                        <span className="search-item-icon">#</span>
+                        <span className="search-item-text">{item.replace(/^#/, "")}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+
+                <div className="search-section">
+                  <div className="search-section-title">Recent searches</div>
+                  {filteredRecent.length === 0 ? (
+                    <div className="search-empty">No recent matches.</div>
+                  ) : (
+                    filteredRecent.map((item) => (
+                      <button
+                        key={item}
+                        className="search-item"
+                        type="button"
+                        onClick={() => {
+                          setSearchValue(item);
+                          setSearchOpen(false);
+                        }}
+                      >
+                        <span className="search-item-icon">R</span>
+                        <span className="search-item-text">{item}</span>
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
 
           <div className="navactions">
@@ -238,7 +341,65 @@ export default function App() {
 
           {/* ===== Main feed ===== */}
           <main className="feed">
-              {route === "#/profile" ? (
+              {route === "#/verify" ? (
+                <div className="verify-page">
+                  <div className="verify-card">
+                    <div className="verify-header">
+                      <div>
+                        <h2 className="verify-title">Apply for a Verified Badge</h2>
+                        <div className="verify-muted">
+                          Show your lift on video and get a badge added to your profile.
+                        </div>
+                      </div>
+                      <a className="btn btn-secondary" href="#/">
+                        Back to Feed
+                      </a>
+                    </div>
+
+                    <div className="verify-section">
+                      <div className="verify-label">Pick a badge to verify</div>
+                      <div className="verify-badges" role="listbox" aria-label="Badge options">
+                        {badgeOptions.map((badge) => (
+                          <button
+                            key={badge}
+                            className={"verify-badge" + (selectedBadge === badge ? " is-selected" : "")}
+                            type="button"
+                            onClick={() => setSelectedBadge(badge)}
+                            role="option"
+                            aria-selected={selectedBadge === badge}
+                          >
+                            {badge}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div className="verify-section">
+                      <label className="verify-field">
+                        <span className="verify-label">Upload your lift video</span>
+                        <input className="verify-input" type="file" accept="video/*" />
+                      </label>
+                      <label className="verify-field">
+                        <span className="verify-label">Notes (optional)</span>
+                        <textarea
+                          className="verify-textarea"
+                          rows="4"
+                          placeholder="Add equipment, gym, or any helpful context."
+                        />
+                      </label>
+                    </div>
+
+                    <div className="verify-actions">
+                      <button className="btn btn-primary" type="button">
+                        Submit for Review
+                      </button>
+                      <div className="verify-hint">
+                        Demo only. Your submission will be reviewed within 3-5 days.
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ) : route === "#/profile" ? (
                 <Profile />
               ) : activePostId ? (
               <PostDetail
@@ -320,8 +481,14 @@ export default function App() {
 
           {/* ===== Right rail ===== */}
           <aside className="panel panel-right">
-            <div className="block">
-              <h3>Top Contributors</h3>
+            <div className="block block-verify">
+              <h3>Apply for a Verified Badge</h3>
+              <p className="verify-copy">
+                Submit a lift video to get a badge like 225 Bench, 315 Squat, or 405 Deadlift.
+              </p>
+              <a className="btn btn-primary verify-cta" href="#/verify">
+                Start Application
+              </a>
             </div>
 
             <div className="block">
@@ -603,6 +770,13 @@ function PostDetail({ post, isLoggedIn, session, openLogin, onDeletePost, onUpda
   const [detailIdx, setDetailIdx] = useState(0);
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  useEffect(() => {
+    if (!post) return;
+    const loaded = loadComments(post.id);
+    setComments(loaded);
+  }, [post?.id]);
 
   if (!post) {
     return (
@@ -644,7 +818,9 @@ function PostDetail({ post, isLoggedIn, session, openLogin, onDeletePost, onUpda
 
   const images = post?.images || [];
   const detailTotal = images.length;
-  const isOwner = isLoggedIn && session?.username === post.author;
+  const isOwner =
+    isLoggedIn &&
+    (session?.username === post.author || (session?.id && post.authorId && session.id === post.authorId));
 
   function handleDeletePost() {
     if (!isLoggedIn) {
@@ -652,7 +828,26 @@ function PostDetail({ post, isLoggedIn, session, openLogin, onDeletePost, onUpda
       return;
     }
     if (!isOwner) return;
+    setConfirmOpen(true);
+  }
+
+  function confirmDeletePost() {
+    if (!isLoggedIn || !isOwner) return;
+    deleteCommentsForPost(post.id);
     onDeletePost(post.id);
+    setConfirmOpen(false);
+  }
+
+  function handleDeleteComment(commentId, commentAuthor) {
+    if (!isLoggedIn) {
+      openLogin();
+      return;
+    }
+    const canDelete = isOwner || session?.username === commentAuthor;
+    if (!canDelete) return;
+    const next = deleteComment(post.id, commentId);
+    setComments(next);
+    onUpdatePostCommentCount(post.id, next.length);
   }
 
   function detailPrev(e) {
@@ -700,6 +895,18 @@ function PostDetail({ post, isLoggedIn, session, openLogin, onDeletePost, onUpda
               <button className="detail-menu-item" type="button">
                 Report
               </button>
+              {isOwner && (
+                <button
+                  className="detail-menu-item danger"
+                  type="button"
+                  onClick={() => {
+                    setMenuOpen(false);
+                    handleDeletePost();
+                  }}
+                >
+                  Delete Post
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -772,8 +979,21 @@ function PostDetail({ post, isLoggedIn, session, openLogin, onDeletePost, onUpda
           ) : (
             comments.map((c) => (
               <div className="comment" key={c.id}>
-                <div className="comment-meta">
-                  <strong>{c.author}</strong> · {timeAgo(c.createdAt)}
+                <div className="comment-head">
+                  <div className="comment-meta">
+                    <strong>{c.author}</strong> · {timeAgo(c.createdAt)}
+                  </div>
+                  {(isOwner || session?.username === c.author) && (
+                    <div className="comment-actions">
+                      <button
+                        className="comment-delete"
+                        type="button"
+                        onClick={() => handleDeleteComment(c.id, c.author)}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  )}
                 </div>
                 <div className="comment-body">{c.body}</div>
               </div>
@@ -805,6 +1025,30 @@ function PostDetail({ post, isLoggedIn, session, openLogin, onDeletePost, onUpda
             <button className="lightbox-close" type="button" onClick={() => setLightboxOpen(false)} aria-label="Close">
               ✕
             </button>
+          </div>
+        </div>
+      )}
+
+      {confirmOpen && (
+        <div className="modal-backdrop" onMouseDown={() => setConfirmOpen(false)}>
+          <div className="modal modal-confirm" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <h2 className="modal-title">Delete post?</h2>
+              <button className="modal-x" type="button" onClick={() => setConfirmOpen(false)}>
+                X
+              </button>
+            </div>
+            <p className="modal-confirm-text">
+              This will permanently delete the post and all its comments. This action can't be undone.
+            </p>
+            <div className="modal-confirm-actions">
+              <button className="btn btn-secondary" type="button" onClick={() => setConfirmOpen(false)}>
+                Cancel
+              </button>
+              <button className="btn btn-danger" type="button" onClick={confirmDeletePost}>
+                Delete
+              </button>
+            </div>
           </div>
         </div>
       )}
