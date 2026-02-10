@@ -5,6 +5,7 @@ import CreatePostModal from "./components/CreatePostModal";
 import { addPost, deletePost, loadPosts } from "./lib/postsStorage";
 import { addComment, deleteComment, deleteCommentsForPost, loadComments } from "./lib/commentsStorage";
 import Profile from "./components/Profile";
+import Popular from "./components/Popular";
 
 const tagColorCache = new Map();
 
@@ -401,6 +402,8 @@ export default function App() {
                 </div>
               ) : route === "#/profile" ? (
                 <Profile />
+              ) : route === "#/popular" ? (
+                <Popular />
               ) : activePostId ? (
               <PostDetail
                 post={activePost}
