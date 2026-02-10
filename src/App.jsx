@@ -6,6 +6,7 @@ import { addPost, deletePost, loadPosts } from "./lib/postsStorage";
 import { addComment, deleteComment, deleteCommentsForPost, loadComments } from "./lib/commentsStorage";
 import Profile from "./components/Profile";
 import Explore from "./components/Explore";
+import Popular from "./components/Popular";
 
 const tagColorCache = new Map();
 
@@ -405,6 +406,8 @@ export default function App() {
                 <Profile />
               ) : route === "#/explore" ? (
                 <Explore />
+              ) : route === "#/popular" ? (
+                <Popular />
               ) : activePostId ? (
               <PostDetail
                 post={activePost}
