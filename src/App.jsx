@@ -330,13 +330,13 @@ export default function App() {
 
             <div className="block">
               <h3>Popular Categories</h3>
-              <a href="#/c/form" className="category-link">Form / Technique</a>
-              <a href="#/c/mealprep" className="category-link">Meal Prep</a>
-              <a href="#/c/physique" className="category-link">Physique</a>
-              <a href="#/c/beginners" className="category-link">Beginners Guide</a>
-              <a href="#/c/general" className="category-link">General Discussion</a>
-              <a href="#/c/success" className="category-link">Success Stories</a>
-            </div>
+              <a href="#/explore?cat=Form" className="category-link">Form / Technique</a>
+              <a href="#/explore?cat=Meal%20Prep" className="category-link">Meal Prep</a>
+              <a href="#/explore?cat=Physique" className="category-link">Physique</a>
+              <a href="#/explore?cat=Beginners" className="category-link">Beginners Guide</a>
+              <a href="#/explore?cat=General" className="category-link">General Discussion</a>
+              <a href="#/explore?cat=Success" className="category-link">Success Stories</a>
+            </div>  
           </aside>
 
           {/* ===== Main feed ===== */}
@@ -401,7 +401,7 @@ export default function App() {
                 </div>
               ) : route === "#/profile" ? (
                 <Profile />
-              ) : route === "#/explore" ? (
+              ) : route.startsWith("#/explore") ? (
                 <Explore />
               ) : route === "#/trending" ? (
                 <Trending />
