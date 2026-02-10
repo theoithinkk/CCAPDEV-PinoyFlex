@@ -12,7 +12,6 @@ export default function Navbar({
           <a className="navlink is-active" href="#/">Home</a>
           <a className="navlink" href="#/explore">Explore</a>
           <a className="navlink" href="#/trending">Trending</a>
-          <a className="navlink" href="#/popular">Popular</a>
         </nav>
 
         <div className="nav-center">

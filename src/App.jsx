@@ -6,7 +6,7 @@ import { addPost, deletePost, loadPosts } from "./lib/postsStorage";
 import { addComment, deleteComment, deleteCommentsForPost, loadComments } from "./lib/commentsStorage";
 import Profile from "./components/Profile";
 import Explore from "./components/Explore";
-import Popular from "./components/Popular";
+import Trending from "./components/Trending";
 
 const tagColorCache = new Map();
 
@@ -227,9 +227,6 @@ export default function App() {
             <a className={"navlink" + (route.startsWith("#/trending") ? " is-active" : "")} href="#/trending">
               Trending
             </a>
-            <a className={"navlink" + (route.startsWith("#/popular") ? " is-active" : "")} href="#/popular">
-              Popular
-            </a>
           </nav>
 
           <div className="nav-center">
@@ -406,8 +403,8 @@ export default function App() {
                 <Profile />
               ) : route === "#/explore" ? (
                 <Explore />
-              ) : route === "#/popular" ? (
-                <Popular />
+              ) : route === "#/trending" ? (
+                <Trending />
               ) : activePostId ? (
               <PostDetail
                 post={activePost}

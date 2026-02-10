@@ -3740,91 +3740,29 @@ body{ margin: 0; background: var(--page-bg); }
 .empty-state { grid-column: 1 / -1; text-align: center; padding: 40px; color: #888; }
 
 /* =========================
-   POPULAR PAGE
+   TRENDING PAGE
    =========================*/
-.popular-container{
+.trending-container{
   padding: 20px 0;
 }
 
-.popular-header{
+.trending-header{
   margin-bottom: 14px;
 }
 
-.popular-title{
+.trending-title{
   margin: 0;
   color: var(--red-dark);
   font-size: 22px;
 }
 
-.popular-subtext{
+.trending-subtext{
   margin: 6px 0 0;
   color: #666;
   font-size: 14px;
 }
 
-.popular-categs-block{
-  background: #fff;
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
-  padding: 12px;
-  margin-bottom: 14px;
-}
-
-.popular-categs-row{
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
-}
-
-.popular-categs-heading{
-  font-weight: 700;
-  color: #333;
-  font-size: 14px;
-}
-
-.popular-categs-seeall{
-  text-decoration: none;
-  font-size: 13px;
-  color: var(--red-main);
-}
-
-.popular-categs-strip{
-  display: flex;
-  gap: 12px;
-  overflow-x: auto;
-  padding-bottom: 6px;
-}
-
-.popular-categs-pill{
-  min-width: 160px;
-  flex: 0 0 auto;
-  color: #222;
-  background: #fafafa;
-  border: 1px solid var(--border-subtle);
-  border-radius: 14px;
-  padding: 10px 12px;
-  transition: transform 0.12s ease, box-shadow 0.12s ease, background 0.12s ease;
-}
-
-.popular-categs-pill:hover{
-  background: #fff;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 16px rgba(0,0,0,0.08);
-}
-
-.popular-categs-name{
-  font-weight: 700;
-  font-size: 13px;
-  margin-bottom: 4px;
-}
-
-.popular-categs-count{
-  font-size: 12px;
-  color: #666;
-}
-
-.popular-rank{
+.trending-rank{
   font-weight: 800;
   color: #333;
   background: rgba(0,0,0,0.06);
@@ -3833,7 +3771,7 @@ body{ margin: 0; background: var(--page-bg); }
   font-size: 12px;
 }
 
-.popular-feed{
+.trending-feed{
   width: 100%;
   display: flex;
   flex-direction: column;
