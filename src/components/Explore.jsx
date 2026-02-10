@@ -39,7 +39,37 @@ const PLACEHOLDER_POSTS = {
 }; 
 
 export default function Explore() {
-  const [activeTab, setActiveTab] = useState("Form");
+  // Grabs the part of the URL after the '?'
+  // It looks for the value associated with 'cat'
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.hash.split('?')[1]);
+    // sets the active tab based on the value associated with 'cat', else it defaults to the form category
+    return params.get('cat') || "Form";
+  });
+
+  // ALlows us to redirect to the explore page using the categories at the left side of the site.
+  useEffect(() => {
+    function handleHashChange() {
+      // gets current url starting with '#'
+      const hash = window.location.hash;
+      if (hash.includes("?cat=")) {
+        // splits the string url into two pieces and grabs the part after the equal sign which is our 'tag'
+        const catValue = decodeURIComponent(hash.split("?cat=")[1]);
+        // If the URL is manually changed, and the parameter after '?cat=' does not exist, then the query/code block below is ignored
+        if (CATEGORIES.some(c => c.tag === catValue)) {
+          setActiveTab(catValue); // reupdates the state forcing the screen to re-render showing the correct tab
+        }
+      }
+    }
+
+    // Call the function immediately, just incase the user accesses a category via link
+    handleHashChange();
+
+    // Listen for changes in case user clicks the category at the side bar despite being in the explore page already
+    window.addEventListener("hashchange", handleHashChange);
+    return () => window.removeEventListener("hashchange", handleHashChange); // Cleanup when the user leaves the explorer page
+  }, []);
+
   const [posts, setPosts] = useState([]);
   
   //  DATA FETCHING
@@ -81,7 +111,7 @@ export default function Explore() {
         <p className="subtext">Select a category to explore today.</p>
       </div>
 
-      {/* CARDS GRID */}
+      {/* CARDS GRID (CATEGORY SELECTORS)*/}
       <div className="category-grid">
         {CATEGORIES.map((cat) => {
           const count = categoryStats[cat.tag] || 0;
@@ -90,7 +120,10 @@ export default function Explore() {
             <button
               key={cat.tag}
               className={`category-card ${isActive ? "active" : ""}`}
-              onClick={() => setActiveTab(cat.tag)}
+              onClick={() => {
+                setActiveTab(cat.tag)
+                window.location.hash = `#/explore?cat=${encodeURIComponent(cat.tag)}` // Updates the browser's URL bar
+              }}
             >
               <div className="cat-name">{cat.label}</div>
               <div className="cat-stat">
