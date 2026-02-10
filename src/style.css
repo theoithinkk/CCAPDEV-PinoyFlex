@@ -3418,3 +3418,284 @@ body{ margin: 0; background: var(--page-bg); }
     align-items: flex-start;
   }
 }
+
+/* EXPLORE PAGE STYLES */
+.explore-container {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: 20px var(--page-pad);
+  width: 100%;
+}
+
+.explore-header {
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.explore-header h1 {
+  margin: 0;
+  color: var(--red-dark);
+}
+
+/* TABS GRID */
+.explore-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  justify-content: center;
+  margin-bottom: 40px;
+}
+
+.explore-tab {
+  background: white;
+  border: 1px solid var(--border-subtle);
+  padding: 12px 20px;
+  border-radius: 50px; /* Gives us the pill shape */
+  font-weight: 600;
+  color: #555;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.explore-tab:hover {
+  background: #fdfdfd;
+  border-color: #ccc;
+  transform: translateY(-2px);
+}
+
+.explore-tab.active {
+  background: var(--red-main);
+  color: white;
+  border-color: var(--red-main);
+  box-shadow: 0 4px 12px rgba(198, 40, 40, 0.3);
+}
+
+/* BADGE (Counter) */
+.tab-badge {
+  background: #ffecb3; /* Soft yellow for contrast */
+  color: #8d6e03;
+  font-size: 0.75rem;
+  padding: 2px 8px;
+  border-radius: 10px;
+  font-weight: 800;
+}
+
+.explore-tab.active .tab-badge {
+  background: white;
+  color: var(--red-main);
+}
+
+/* FEED LAYOUT */
+.explore-feed {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.explore-card {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  transition: box-shadow 0.2s;
+}
+
+.explore-card:hover {
+  box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+}
+
+.explore-card h3 a {
+  text-decoration: none;
+  color: #1a1a1a;
+}
+.explore-card h3 a:hover {
+  color: var(--red-main);
+}
+
+.explore-card-header {
+  font-size: 0.85rem;
+  color: #888;
+  margin-bottom: 10px;
+  display: flex;
+  justify-content: space-between;
+}
+
+/* EXPLORE PAGE STYLES */
+.explore-container {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: 20px 0;
+  width: 100%;
+}
+
+.explore-header {
+  margin-bottom: 30px;
+  text-align: center;
+}
+
+.explore-header h1 {
+  margin: 0;
+  color: var(--red-dark);
+}
+
+.subtext {
+  color: #666;
+  margin-top: 8px;
+}
+
+/* CATEGORY CARDS (Grid Layout) */
+.category-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+  gap: 16px;
+  margin-bottom: 32px;
+}
+
+.category-card {
+  background: white;
+  border: 2px solid transparent;
+  border-radius: 12px;
+  padding: 16px 12px;
+  text-align: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  height: 100%;
+  min-height: 100px;
+}
+
+.category-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(0,0,0,0.08);
+  border-color: #eee;
+}
+
+.category-card.active {
+  border-color: var(--red-main);
+  background: #fff5f5;
+  box-shadow: 0 4px 12px rgba(198, 40, 40, 0.15);
+}
+
+.cat-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: #333;
+}
+
+.category-card.active .cat-name {
+  color: var(--red-main);
+}
+
+.cat-stat {
+  font-size: 0.8rem;
+}
+
+.stat-highlight {
+  color: #c62828;
+  font-weight: 800;
+  background: #ffecb3; /* Delete this if ever y'all want to remove the highlight */
+  padding: 2px 8px;
+  border-radius: 10px;
+}
+
+.stat-muted {
+  color: #999;
+}
+
+/* FEED LAYOUT */
+.explore-feed {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 20px;
+}
+
+.explore-card {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid var(--border-subtle);
+  transition: box-shadow 0.2s;
+  display: flex;
+  flex-direction: column;
+}
+
+.explore-card:hover {
+  box-shadow: 0 5px 15px rgba(0,0,0,0.05);
+}
+
+.explore-card h3 {
+  margin: 10px 0;
+  font-size: 1.1rem;
+}
+
+.explore-card h3 a {
+  text-decoration: none;
+  color: #1a1a1a;
+}
+
+.explore-card h3 a:hover {
+  color: var(--red-main);
+}
+
+.explore-card-header {
+  font-size: 0.85rem;
+  color: #888;
+  margin-bottom: 8px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.user-tag {
+  color: var(--red-main);
+  font-weight: 600;
+}
+
+.preview-text {
+  color: #555;
+  line-height: 1.5;
+  font-size: 0.95rem;
+  margin-bottom: 16px;
+  flex: 1;
+}
+
+.explore-card-footer {
+  margin-top: auto;
+  font-size: 0.85rem;
+  color: #999;
+  border-top: 1px solid #eee;
+  padding-top: 12px;
+}
+
+.empty-state {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 40px;
+  color: #888;
+  background: #fff;
+  border-radius: 12px;
+  border: 1px dashed #ccc;
+}
+
+/* Responsive */
+@media (max-width: 600px) {
+  .category-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .explore-feed {
+    grid-template-columns: 1fr;
+  }
+}
+
+.user-tag { color: var(--red-main); font-weight: 600; }
+.preview-text { color: #555; line-height: 1.5; font-size: 0.95rem; }
+.explore-card-footer { margin-top: 15px; font-size: 0.85rem; color: #999; }
+.empty-state { grid-column: 1 / -1; text-align: center; padding: 40px; color: #888; }
+

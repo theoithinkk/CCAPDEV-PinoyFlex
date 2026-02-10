@@ -5,6 +5,7 @@ import CreatePostModal from "./components/CreatePostModal";
 import { addPost, deletePost, loadPosts } from "./lib/postsStorage";
 import { addComment, deleteComment, deleteCommentsForPost, loadComments } from "./lib/commentsStorage";
 import Profile from "./components/Profile";
+import Explore from "./components/Explore";
 
 const tagColorCache = new Map();
 
@@ -30,6 +31,7 @@ function hslToRgb(h, s, l) {
   };
 }
 
+// Design wise I suggest we use static colors for tags
 function getTagStyle(tag) {
   if (!tag) return undefined;
   if (!tagColorCache.has(tag)) {
@@ -401,6 +403,8 @@ export default function App() {
                 </div>
               ) : route === "#/profile" ? (
                 <Profile />
+              ) : route === "#/explore" ? (
+                <Explore />
               ) : activePostId ? (
               <PostDetail
                 post={activePost}
