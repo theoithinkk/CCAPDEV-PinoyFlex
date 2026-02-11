@@ -7,6 +7,8 @@ import { addComment, deleteComment, deleteCommentsForPost, loadComments } from "
 import Profile from "./components/Profile";
 import Explore from "./components/Explore";
 import Trending from "./components/Trending";
+import logoLight from "./assets/logo/lightmode.png";
+import logoDark from "./assets/logo/darkmode.png";
 
 const tagColorCache = new Map();
 
@@ -190,24 +192,38 @@ export default function App() {
     return () => (document.body.style.overflow = "");
   }, [authOpen, createOpen]);
 
-  /* ===== Render ===== */
+/* ===== Render ===== */
   return (
     <div className={"app " + (appReady ? "app-ready" : "app-loading")}>
       {!appReady && (
         <div className="splash" role="status" aria-label="Loading">
           <div className="splash-card">
-            <div className="splash-logo" aria-hidden="true" />
+            {/* Logo Section */}
+            <div className="splash-logo" style={{ width: '100px', height: '100px' }}>
+              <img 
+                src={logoLight} 
+                alt="PinoyFlex" 
+                style={{ width: '100%', height: '100%', objectFit: 'contain' }} 
+              />
+            </div>
+            
+            {/* Title */}
             <div className="splash-title">
               Pinoy<span className="splash-flex">Flex</span>
             </div>
+            
+            {/* Spinner */}
             <div className="splash-spinner" aria-hidden="true" />
           </div>
         </div>
       )}
+
       {/* ===== Header ===== */}
       <header className="brandbar">
         <div className="brandbar-inner">
-          <div className="brand-logo" aria-hidden="true" />
+          <div className="brand-logo">
+            <img src={logoDark} alt="PinoyFlex" />
+          </div>
           <div className="brand-text">
             Pinoy<span className="brand-flex">Flex</span>
           </div>
