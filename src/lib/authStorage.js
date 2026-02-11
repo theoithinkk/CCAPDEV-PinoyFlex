@@ -1,3 +1,4 @@
+import { SAMPLE_USERS } from "./sampleData";
 const LS_USERS = "pf_users";
 const LS_SESSION = "pf_session";
 
@@ -49,26 +50,7 @@ export function saveUsers(users) {
 
 export function seedUsersIfEmpty() {
   if (loadUsers().length === 0) {
-    saveUsers([
-      {
-        id: crypto.randomUUID(),
-        username: "theo",
-        password: "1234",
-        avatar: "/avatars/default.png"
-      },
-      {
-        id: crypto.randomUUID(),
-        username: "jane",
-        password: "1234",
-        avatar: "/avatars/default.png"
-      },
-      {
-        id: crypto.randomUUID(),
-        username: "admin",
-        password: "admin",
-        avatar: "/avatars/default.png"
-      }
-    ]);
+    saveUsers(SAMPLE_USERS);
   }
 }
 

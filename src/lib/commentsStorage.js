@@ -1,3 +1,4 @@
+import { SAMPLE_COMMENTS_BY_POST } from "./sampleData";
 const LS_COMMENTS = "pf_comments_v1";
 
 /**
@@ -21,6 +22,13 @@ function loadAll() {
 
 function saveAll(map) {
   localStorage.setItem(LS_COMMENTS, JSON.stringify(map));
+}
+
+export function seedCommentsIfEmpty() {
+  const current = loadAll();
+  if (Object.keys(current).length === 0) {
+    saveAll(SAMPLE_COMMENTS_BY_POST);
+  }
 }
 
 export function loadComments(postId) {

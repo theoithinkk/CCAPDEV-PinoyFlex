@@ -2,8 +2,9 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "./hooks/useAuth";
 import AuthModal from "./components/AuthModal";
 import CreatePostModal from "./components/CreatePostModal";
-import { addPost, deletePost, loadPosts } from "./lib/postsStorage";
-import { addComment, deleteComment, deleteCommentsForPost, loadComments } from "./lib/commentsStorage";
+import { addPost, deletePost, loadPosts, savePosts, seedPostsIfEmpty, voteOnPost } from "./lib/postsStorage";
+import { addComment, deleteComment, deleteCommentsForPost, loadComments, seedCommentsIfEmpty } from "./lib/commentsStorage";
+import { loadUserWorkoutLogs, upsertUserWorkoutLog } from "./lib/workoutLogStorage";
 import Profile from "./components/Profile";
 import Explore from "./components/Explore";
 import Trending from "./components/Trending";
@@ -11,6 +12,19 @@ import logoLight from "./assets/logo/lightmode.png";
 import logoDark from "./assets/logo/darkmode.png";
 
 const tagColorCache = new Map();
+const FEATURED_NEWS_ROUTE = "#/news/periodized-upper-lower-brief";
+const FEATURED_NEWS_POST = {
+  id: "news_featured_2026_01",
+  title: "Push Pull Legs no longer default for intermediates? New 12-week trial says periodized upper/lower may edge ahead",
+  author: "PinoyFlex Editorial",
+  createdAt: new Date("2026-01-25T09:00:00+08:00").getTime(),
+  tag: "Research Brief",
+  votes: 184,
+  body:
+    "A controlled 12-week intervention tracked 96 intermediate lifters across two commonly used split models: a classic push/pull/legs routine and a periodized upper/lower schedule.\n\nThe researchers reported that both groups improved lean mass, but the periodized upper/lower group showed stronger average hypertrophy markers in the quads and upper back while maintaining similar strength progression. Weekly fatigue scores were also slightly lower in the periodized group.\n\nThe authors note that this does not make PPL obsolete. Their conclusion focuses on workload management and progression quality for intermediates with limited recovery bandwidth.\n\nPractical takeaway: if progression has stalled on a static split, a periodized upper/lower setup may offer a better stimulus-to-fatigue ratio without increasing training days.",
+};
+const FEATURED_NEWS_REFERENCE =
+  "M. Reyes, J. Dela Cruz, T. Navarro (2026). Split Strategy and Hypertrophy Outcomes in Intermediate Lifters. Journal of Applied Strength Science, 14(2), 77-91.";
 
 function hslToRgb(h, s, l) {
   const c = (1 - Math.abs(2 * l - 1)) * s;
@@ -88,6 +102,13 @@ export default function App() {
   );
   const [selectedBadge, setSelectedBadge] = useState("225 lb Bench");
 
+  /* ===== Personal workout logs ===== */
+  const [logDate, setLogDate] = useState(() => formatDateKey(Date.now()));
+  const [logText, setLogText] = useState("");
+  const [logError, setLogError] = useState("");
+  const [workoutLogs, setWorkoutLogs] = useState({});
+  const logUserKey = session?.id || session?.username || "guest";
+
   /* ===== Search UI (static suggestions) ===== */
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
@@ -142,6 +163,8 @@ export default function App() {
 
     let loaded = [];
     try {
+      seedPostsIfEmpty();
+      seedCommentsIfEmpty();
       loaded = loadPosts();
     } catch {
       loaded = [];
@@ -155,6 +178,14 @@ export default function App() {
     const t = setTimeout(() => setAppReady(true), delay);
     return () => clearTimeout(t);
   }, []);
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setWorkoutLogs({});
+      return;
+    }
+    setWorkoutLogs(loadUserWorkoutLogs(logUserKey));
+  }, [isLoggedIn, logUserKey]);
 
 
   /* ===== Create post modal ===== */
@@ -172,18 +203,83 @@ export default function App() {
   function handleCreate({ title, tag, body, images }) {
     const now = Date.now();
     const newPost = {
-    id: `p_${now}`,
-    title,
-    body,
-    authorId: session.id, 
-    votes: 0,
-    commentCount: 0,
+      id: `p_${now}`,
+      title: title.trim(),
+      tag,
+      body: body.trim(),
+      author: session?.username || "user",
+      authorId: session?.id || null,
+      createdAt: now,
+      votes: 0,
+      voteByUser: {},
+      images,
+      commentCount: 0,
     };
 
     const next = addPost(newPost);
     setPosts(next);
     setCreateOpen(false);
   }
+
+  function updatePostCommentCount(postId, count) {
+    setPosts((prev) => {
+      const next = prev.map((p) => (p.id === postId ? { ...p, commentCount: count } : p));
+      savePosts(next);
+      return next;
+    });
+  }
+
+  function handleVote(postId, direction) {
+    if (!isLoggedIn) {
+      setToast("You need to log in before voting.");
+      openLogin();
+      return;
+    }
+    const next = voteOnPost(postId, session?.username, direction);
+    setPosts(next);
+  }
+
+  function saveWorkoutLogEntry(dateKey, text) {
+    if (!isLoggedIn) {
+      setToast("You need to log in before saving a workout log.");
+      openLogin();
+      return false;
+    }
+
+    const cleaned = (text || "").trim();
+    if (!dateKey || cleaned.length < 1 || cleaned.length > 30) return false;
+
+    const next = upsertUserWorkoutLog(logUserKey, dateKey, cleaned);
+    setWorkoutLogs(next);
+    return true;
+  }
+
+  function handleQuickLogSave() {
+    setLogError("");
+    const cleaned = logText.trim();
+
+    if (!cleaned) {
+      setLogError("Please add a short workout note.");
+      return;
+    }
+    if (cleaned.length > 30) {
+      setLogError("Workout note must be at most 30 characters.");
+      return;
+    }
+
+    const ok = saveWorkoutLogEntry(logDate, cleaned);
+    if (!ok) return;
+    setLogText("");
+    setToast("Workout log saved.");
+  }
+
+  const recentLogEntries = useMemo(
+    () =>
+      Object.entries(workoutLogs)
+        .sort((a, b) => (a[0] < b[0] ? 1 : -1))
+        .slice(0, 3),
+    [workoutLogs]
+  );
 
   /* Lock background scroll when any modal is open */
   useEffect(() => {
@@ -342,16 +438,53 @@ export default function App() {
           <aside className="panel panel-left">
             <div className="block block-news">
               <h2>Current Fitness News</h2>
+              <div className="news-priority">2/11/2026</div>
+              <a className="news-forum-link" href={FEATURED_NEWS_ROUTE}>
+                <div className="news-forum-head">
+                  <span className="news-forum-pill">Forum Brief</span>
+                  <span className="news-forum-meta">@pinoyflex_editorial | 2d ago</span>
+                </div>
+                <div className="news-link">
+                  Push Pull Legs Vaulted?
+                </div>
+                <p className="news-summary">
+                  A 12-week controlled trial found stronger average growth outcomes from a periodized upper/lower split than a standard PPL setup in intermediate lifters.
+                  <span className="news-readmore"> Read more...</span>
+                </p>
+                <div className="news-citation">
+                  Reference: Journal of Applied Strength Science, Vol. 14(2), pp. 77-91.
+                </div>
+                <div className="news-cta">Open full breakdown</div>
+              </a>
             </div>
 
-            <div className="block">
+            <div className="block block-categories">
               <h3>Popular Categories</h3>
-              <a href="#/explore?cat=Form" className="category-link">Form / Technique</a>
-              <a href="#/explore?cat=Meal%20Prep" className="category-link">Meal Prep</a>
-              <a href="#/explore?cat=Physique" className="category-link">Physique</a>
-              <a href="#/explore?cat=Beginners" className="category-link">Beginners Guide</a>
-              <a href="#/explore?cat=General" className="category-link">General Discussion</a>
-              <a href="#/explore?cat=Success" className="category-link">Success Stories</a>
+              <p className="categories-subtext">Jump into focused discussions.</p>
+              <a href="#/explore?cat=Form" className="category-link">
+                <span className="category-link-title">Form / Technique</span>
+                <span className="category-link-meta">Form checks and lifting cues</span>
+              </a>
+              <a href="#/explore?cat=Meal%20Prep" className="category-link">
+                <span className="category-link-title">Meal Prep</span>
+                <span className="category-link-meta">Budget meals and macros</span>
+              </a>
+              <a href="#/explore?cat=Physique" className="category-link">
+                <span className="category-link-title">Physique</span>
+                <span className="category-link-meta">Recomp and progress tracking</span>
+              </a>
+              <a href="#/explore?cat=Beginners" className="category-link">
+                <span className="category-link-title">Beginners Guide</span>
+                <span className="category-link-meta">Start here and avoid mistakes</span>
+              </a>
+              <a href="#/explore?cat=General" className="category-link">
+                <span className="category-link-title">General Discussion</span>
+                <span className="category-link-meta">Any fitness topic</span>
+              </a>
+              <a href="#/explore?cat=Success" className="category-link">
+                <span className="category-link-title">Success Stories</span>
+                <span className="category-link-meta">PRs, milestones, and wins</span>
+              </a>
             </div>  
           </aside>
 
@@ -361,10 +494,16 @@ export default function App() {
                 <div className="verify-page">
                   <div className="verify-card">
                     <div className="verify-header">
-                      <div>
+                      <div className="verify-header-main">
+                        <div className="verify-kicker">Athlete Verification</div>
                         <h2 className="verify-title">Apply for a Verified Badge</h2>
                         <div className="verify-muted">
-                          Show your lift on video and get a badge added to your profile.
+                          Submit one clean lift video and get milestone badges added to your profile.
+                        </div>
+                        <div className="verify-steps" aria-label="How verification works">
+                          <span className="verify-step">1. Pick badge</span>
+                          <span className="verify-step">2. Upload lift video</span>
+                          <span className="verify-step">3. Wait for review</span>
                         </div>
                       </div>
                       <a className="btn btn-secondary" href="#/">
@@ -393,6 +532,7 @@ export default function App() {
                     <div className="verify-section">
                       <label className="verify-field">
                         <span className="verify-label">Upload your lift video</span>
+                        <span className="verify-help">Use a clear side angle and show full lockout.</span>
                         <input className="verify-input" type="file" accept="video/*" />
                       </label>
                       <label className="verify-field">
@@ -400,7 +540,7 @@ export default function App() {
                         <textarea
                           className="verify-textarea"
                           rows="4"
-                          placeholder="Add equipment, gym, or any helpful context."
+                          placeholder="Add equipment used, gym setup, and any useful context for reviewers."
                         />
                       </label>
                     </div>
@@ -410,11 +550,32 @@ export default function App() {
                         Submit for Review
                       </button>
                       <div className="verify-hint">
-                        Demo only. Your submission will be reviewed within 3-5 days.
+                         Your submission will be reviewed within 3-5 days.
                       </div>
+                    </div>
+                    <div className="verify-trust-row" aria-label="Verification standards">
+                      <span className="verify-trust-pill">Manual review</span>
+                      <span className="verify-trust-pill">No hidden fees</span>
+                      <span className="verify-trust-pill">Profile badge unlock</span>
                     </div>
                   </div>
                 </div>
+              ) : route.startsWith("#/news") ? (
+                <NewsDetailPost news={FEATURED_NEWS_POST} reference={FEATURED_NEWS_REFERENCE} />
+              ) : route === "#/log-calendar" ? (
+                <WorkoutLogCalendar
+                  logs={workoutLogs}
+                  isLoggedIn={isLoggedIn}
+                  onRequireLogin={() => {
+                    setToast("You need to log in before saving a workout log.");
+                    openLogin();
+                  }}
+                  onSaveEntry={(dateKey, text) => {
+                    const ok = saveWorkoutLogEntry(dateKey, text);
+                    if (ok) setToast("Workout log saved.");
+                    return ok;
+                  }}
+                />
               ) : route === "#/profile" ? (
                 <Profile />
               ) : route.startsWith("#/explore") ? (
@@ -427,16 +588,14 @@ export default function App() {
                 isLoggedIn={isLoggedIn}
                 session={session}
                 openLogin={openLogin}
+                onVotePost={handleVote}
+                currentUserVote={activePost?.voteByUser?.[session?.username] || 0}
                 onDeletePost={(postId) => {
                   const next = deletePost(postId);
                   setPosts(next);
                   window.location.hash = "#/";
                 }}
-                onUpdatePostCommentCount={(postId, count) => {
-                  setPosts((prev) =>
-                    prev.map((p) => (p.id === postId ? { ...p, commentCount: count } : p))
-                  );
-                }}
+                onUpdatePostCommentCount={updatePostCommentCount}
               />
             ) : (
               <>
@@ -475,10 +634,7 @@ export default function App() {
 
                 {/* FEED */}
                 {posts.length === 0 ? (
-                  <>
-                    <PostCard id="sample1" title="Post title placeholder" meta="by user · 7 hours ago" votes={18} tag="General" commentCount={0}/>
-                    <PostCard id="sample2" title="Another post title" meta="by user · 7 hours ago" votes={22} tag="General" commentCount={0}/>
-                  </>
+                  <div className="detail-muted">No posts yet.</div>
                 ) : (
                   posts.map((p) => (
                   <PostCard
@@ -488,10 +644,12 @@ export default function App() {
                     author={p.author}
                     createdAt={p.createdAt}
                     preview={(p.body || "").slice(0, 120) + ((p.body || "").length > 120 ? "…" : "")}
-                    votes={p.votes}
+                    votes={p.votes || 0}
+                    userVote={p.voteByUser?.[session?.username] || 0}
                     tag={p.tag}
                     commentCount={p.commentCount || 0}
                     images={p.images || []}
+                    onVote={handleVote}
                   />
                   ))
                 )}
@@ -502,19 +660,82 @@ export default function App() {
           {/* ===== Right rail ===== */}
           <aside className="panel panel-right">
             <div className="block block-verify">
+              <div className="verify-kicker">Verification Program</div>
               <h3>Apply for a Verified Badge</h3>
               <p className="verify-copy">
-                Submit a lift video to get a badge like 225 Bench, 315 Squat, or 405 Deadlift.
+                Submit a lift video and unlock profile badges for milestone lifts.
               </p>
+              <div className="verify-pill-row" aria-label="Popular badge targets">
+                <span className="verify-pill">225 Bench</span>
+                <span className="verify-pill">315 Squat</span>
+                <span className="verify-pill">405 Deadlift</span>
+              </div>
+              <div className="verify-stats">
+                <div className="verify-stat">
+                  <strong>3-5 days</strong>
+                  <span>Review time</span>
+                </div>
+                <div className="verify-stat">
+                  <strong>Video proof</strong>
+                  <span>Simple process</span>
+                </div>
+              </div>
               <a className="btn btn-primary verify-cta" href="#/verify">
-                Start Application
+                Start Verification
               </a>
             </div>
 
-            <div className="block">
-              <h3>Trending Topics</h3>
-              <a href="#/t/topic1" className="topic-link">Topic 1</a>
-              <a href="#/t/topic2" className="topic-link">Topic 2</a>
+            <div className="block block-worklog">
+              <h3>Daily Workout Log</h3>
+              <p className="worklog-copy">Save one short note per day (max 30 chars).</p>
+
+              <label className="worklog-field">
+                <span>Date</span>
+                <input
+                  className="worklog-input"
+                  type="date"
+                  value={logDate}
+                  onChange={(e) => setLogDate(e.target.value)}
+                />
+              </label>
+
+              <label className="worklog-field">
+                <span>What did you do?</span>
+                <input
+                  className="worklog-input"
+                  type="text"
+                  maxLength={30}
+                  value={logText}
+                  onChange={(e) => setLogText(e.target.value)}
+                  placeholder="Upper day, 5x5 squats, etc."
+                />
+              </label>
+              <div className="worklog-count">{logText.length}/30</div>
+
+              {logError && <div className="form-error">{logError}</div>}
+
+              <div className="worklog-actions">
+                <button className="btn btn-primary" type="button" onClick={handleQuickLogSave}>
+                  Save Log
+                </button>
+                <a className="btn btn-secondary" href="#/log-calendar">
+                  View Calendar
+                </a>
+              </div>
+
+              <div className="worklog-recent">
+                <div className="worklog-recent-title">Recent logs</div>
+                {recentLogEntries.length === 0 ? (
+                  <div className="worklog-empty">No logs yet.</div>
+                ) : (
+                  recentLogEntries.map(([dateKey, entry]) => (
+                    <div key={dateKey} className="worklog-item">
+                      <span className="worklog-item-date">{dateKey}</span>
+                      <span className="worklog-item-text">{entry}</span>
+                    </div>
+                  ))
+                )}
+              </div>
             </div>
           </aside>
         </div>
@@ -563,6 +784,177 @@ export default function App() {
   );
 }
 
+function NewsDetailPost({ news, reference }) {
+  return (
+    <div className="post-detail">
+      <a className="btn btn-secondary" href="#/">
+        Back
+      </a>
+
+      <div className="detail-card news-detail-card">
+        <div className="detail-head">
+          <h2 className="detail-title">{news.title}</h2>
+          <span className="detail-tag">{news.tag}</span>
+        </div>
+
+        <div className="detail-meta">
+          by <strong>{news.author}</strong> · {timeAgo(news.createdAt)}
+          <span className="detail-tag">{news.votes} upvotes</span>
+          <span className="detail-tag">Research Digest</span>
+        </div>
+
+        <div className="detail-body">{news.body}</div>
+
+        <div className="news-detail-section">
+          <h3 className="detail-subtitle">Key points</h3>
+          <ul className="news-detail-points">
+            <li>Hypertrophy results were slightly stronger in the periodized upper/lower group.</li>
+            <li>Strength gains were similar across both split models by week 12.</li>
+            <li>Participants on periodized programming reported lower average fatigue.</li>
+            <li>Authors recommend split choice based on recoverability and progression quality.</li>
+          </ul>
+        </div>
+
+        <div className="news-detail-reference">
+          <strong>Reference (mock): </strong>
+          {reference}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WorkoutLogCalendar({ logs, isLoggedIn, onRequireLogin, onSaveEntry }) {
+  const [monthStart, setMonthStart] = useState(() => startOfMonth(new Date()));
+  const [selectedDate, setSelectedDate] = useState(() => formatDateKey(Date.now()));
+  const [draft, setDraft] = useState("");
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    setDraft(logs[selectedDate] || "");
+    setError("");
+  }, [selectedDate, logs]);
+
+  const cells = useMemo(() => buildCalendarCells(monthStart), [monthStart]);
+  const monthLabel = monthStart.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const todayKey = formatDateKey(Date.now());
+
+  function handleSave() {
+    setError("");
+    const cleaned = draft.trim();
+
+    if (!isLoggedIn) {
+      onRequireLogin?.();
+      return;
+    }
+    if (!cleaned) {
+      setError("Please add a short workout note.");
+      return;
+    }
+    if (cleaned.length > 30) {
+      setError("Workout note must be at most 30 characters.");
+      return;
+    }
+
+    const ok = onSaveEntry?.(selectedDate, cleaned);
+    if (!ok) {
+      setError("Unable to save this entry.");
+    }
+  }
+
+  return (
+    <div className="worklog-page">
+      <div className="worklog-page-header">
+        <h2 className="worklog-page-title">Workout Log Calendar</h2>
+        <a className="btn btn-secondary" href="#/">
+          Back to Feed
+        </a>
+      </div>
+
+      <div className="worklog-calendar-card">
+        <div className="worklog-calendar-top">
+          <button
+            className="worklog-month-nav"
+            type="button"
+            aria-label="Previous month"
+            onClick={() => setMonthStart((prev) => new Date(prev.getFullYear(), prev.getMonth() - 1, 1))}
+          >
+            ‹
+          </button>
+          <div className="worklog-month-label">{monthLabel}</div>
+          <button
+            className="worklog-month-nav"
+            type="button"
+            aria-label="Next month"
+            onClick={() => setMonthStart((prev) => new Date(prev.getFullYear(), prev.getMonth() + 1, 1))}
+          >
+            ›
+          </button>
+        </div>
+
+        <div className="worklog-weekdays">
+          <span>Sun</span>
+          <span>Mon</span>
+          <span>Tue</span>
+          <span>Wed</span>
+          <span>Thu</span>
+          <span>Fri</span>
+          <span>Sat</span>
+        </div>
+
+        <div className="worklog-grid">
+          {cells.map((cell, idx) => {
+            if (!cell) return <div key={`blank-${idx}`} className="worklog-day worklog-day-blank" />;
+            const isSelected = cell.dateKey === selectedDate;
+            const isToday = cell.dateKey === todayKey;
+            const hasEntry = Boolean(logs[cell.dateKey]);
+
+            return (
+              <button
+                key={cell.dateKey}
+                type="button"
+                className={
+                  "worklog-day" +
+                  (isSelected ? " is-selected" : "") +
+                  (isToday ? " is-today" : "") +
+                  (hasEntry ? " has-entry" : "")
+                }
+                onClick={() => setSelectedDate(cell.dateKey)}
+                title={logs[cell.dateKey] || "No entry"}
+              >
+                <span className="worklog-day-num">{cell.day}</span>
+                {hasEntry && <span className="worklog-day-dot" aria-hidden="true" />}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="worklog-editor-card">
+        <div className="worklog-editor-head">
+          <h3>Entry for {selectedDate}</h3>
+          {logs[selectedDate] && <span className="detail-tag">Saved</span>}
+        </div>
+        <input
+          className="worklog-input"
+          type="text"
+          maxLength={30}
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          placeholder="Upper day, deadlift focus, etc."
+        />
+        <div className="worklog-count">{draft.length}/30</div>
+        {error && <div className="form-error">{error}</div>}
+        <div className="worklog-editor-actions">
+          <button className="btn btn-primary" type="button" onClick={handleSave}>
+            Save Entry
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 /* =========================
    Post Card (feed preview)
 ========================= */
@@ -571,12 +963,14 @@ function PostCard({
   title,
   meta,
   votes,
+  userVote = 0,
   tag,
   commentCount = 0,
   preview = "",
   author = "",
   createdAt = 0,
   images = [],
+  onVote,
 }) {
   const timeText = createdAt ? timeAgo(createdAt) : meta;
   const postHref = `#/post/${id}`;
@@ -624,25 +1018,27 @@ function PostCard({
 
       <div className="votes">
         <button
-          className="vote-btn upvote"
+          className={"vote-btn upvote" + (userVote === 1 ? " is-active" : "")}
           type="button"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
+            onVote?.(id, 1);
           }}
         >
-          ▲
+          ↑
         </button>
         <div className="vote-count">{votes}</div>
         <button
-          className="vote-btn downvote"
+          className={"vote-btn downvote" + (userVote === -1 ? " is-active" : "")}
           type="button"
           onClick={(e) => {
             e.preventDefault();
             e.stopPropagation();
+            onVote?.(id, -1);
           }}
         >
-          ▼
+          ↓
         </button>
       </div>
 
@@ -784,7 +1180,16 @@ function PostMedia({ images }) {
 /* =========================
    Post Detail (open post)
 ========================= */
-function PostDetail({ post, isLoggedIn, session, openLogin, onDeletePost, onUpdatePostCommentCount }) {
+function PostDetail({
+  post,
+  isLoggedIn,
+  session,
+  openLogin,
+  onDeletePost,
+  onUpdatePostCommentCount,
+  onVotePost,
+  currentUserVote = 0,
+}) {
   const [comments, setComments] = useState([]);
   const [text, setText] = useState("");
   const [detailIdx, setDetailIdx] = useState(0);
@@ -936,6 +1341,23 @@ function PostDetail({ post, isLoggedIn, session, openLogin, onDeletePost, onUpda
             {post.tag}
           </span>
           <span className="detail-tag">{comments.length} comments</span>
+        </div>
+        <div className="detail-votes">
+          <button
+            className={"vote-btn upvote" + (currentUserVote === 1 ? " is-active" : "")}
+            type="button"
+            onClick={() => onVotePost?.(post.id, 1)}
+          >
+            ↑
+          </button>
+          <span className="vote-count">{post.votes || 0}</span>
+          <button
+            className={"vote-btn downvote" + (currentUserVote === -1 ? " is-active" : "")}
+            type="button"
+            onClick={() => onVotePost?.(post.id, -1)}
+          >
+            ↓
+          </button>
         </div>
         {detailTotal > 0 && (
           <div className="detail-media">
@@ -1099,6 +1521,34 @@ function parsePostIdFromHash(hash) {
   const m = hash.match(/^#\/post\/(.+)$/);
   return m ? m[1] : null;
 }
+
+function formatDateKey(ts) {
+  const d = new Date(ts);
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function startOfMonth(date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function buildCalendarCells(monthDate) {
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const firstWeekday = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  const cells = [];
+  for (let i = 0; i < firstWeekday; i += 1) cells.push(null);
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    const key = formatDateKey(new Date(year, month, day).getTime());
+    cells.push({ day, dateKey: key });
+  }
+  return cells;
+}
+
 
 
 

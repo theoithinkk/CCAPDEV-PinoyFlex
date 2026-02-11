@@ -323,9 +323,129 @@ body {
 
 .block {
   background: var(--card-bg);
-  border-radius: 10px;
-  padding: 16px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  border-radius: 16px;
+  padding: 18px;
+  border: 1px solid rgba(198, 40, 40, 0.14);
+  background: linear-gradient(180deg, #ffffff 0%, #fff8f8 100%);
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.08);
+}
+
+.panel-left .block h2,
+.panel-left .block h3,
+.panel-right .block h3 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.2;
+  color: #1f1f1f;
+}
+
+.block-news {
+  display: grid;
+  gap: 12px;
+}
+
+.block-news h2 {
+  font-size: 20px;
+  font-weight: 800;
+  color: #8e0000;
+}
+
+.news-priority {
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: rgba(198, 40, 40, 0.12);
+  color: #8e0000;
+  font-size: 11px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  font-weight: 800;
+}
+
+.news-forum-link {
+  display: grid;
+  gap: 10px;
+  text-decoration: none;
+  color: inherit;
+  padding: 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(198, 40, 40, 0.16);
+  background: #fff;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.news-forum-link:hover {
+  transform: translateY(-2px);
+  border-color: rgba(198, 40, 40, 0.32);
+  box-shadow: 0 8px 16px rgba(120, 0, 0, 0.1);
+}
+
+.news-forum-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.news-forum-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #f1f3f5;
+  color: #333;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.news-forum-meta {
+  font-size: 12px;
+  color: #666;
+}
+
+.news-link {
+  color: #121212;
+  font-size: 18px;
+  line-height: 1.32;
+  font-weight: 800;
+  transition: color 0.15s ease;
+}
+
+.news-forum-link:hover .news-link {
+  color: #8e0000;
+}
+
+.news-summary {
+  margin: 0;
+  color: #474747;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.news-readmore {
+  color: var(--red-main);
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.news-citation {
+  color: #6c757d;
+  font-size: 12px;
+  border-top: 1px dashed rgba(0, 0, 0, 0.15);
+  padding-top: 8px;
+}
+
+.news-cta {
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: var(--red-main);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 /* Links (Categories + Topics) */
@@ -348,6 +468,68 @@ body {
 .topic-link:hover {
   background: var(--red-soft);
   color: var(--red-main);
+}
+
+.block-categories {
+  display: grid;
+  gap: 12px;
+}
+
+.categories-subtext {
+  margin: 0 0 2px;
+  font-size: 12px;
+  color: #6b6b6b;
+}
+
+.block-categories .category-link {
+  margin-top: 0;
+  display: grid;
+  gap: 3px;
+  padding: 12px 13px;
+  border-radius: 12px;
+  border: 1px solid rgba(198, 40, 40, 0.16);
+  background: #fff;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.block-categories .category-link::after {
+  content: ">";
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: #9a9a9a;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+.block-categories .category-link:hover {
+  color: inherit;
+  border-color: rgba(198, 40, 40, 0.32);
+  box-shadow: 0 8px 16px rgba(120, 0, 0, 0.1);
+  transform: translateY(-2px);
+  background: #fff6f6;
+}
+
+.block-categories .category-link:hover::after {
+  transform: translate(2px, -50%);
+  color: var(--red-main);
+}
+
+.category-link-title {
+  color: #232323;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.category-link-meta {
+  color: #6e6e6e;
+  font-size: 12px;
+  line-height: 1.25;
+  padding-right: 16px;
 }
 
 /* =========================
@@ -476,6 +658,10 @@ body {
 .vote-btn:hover {
   color: var(--red-main);
   transform: scale(1.15);
+}
+
+.vote-btn.is-active {
+  color: var(--red-main);
 }
 
 .vote-count {
@@ -736,6 +922,16 @@ body {
   font-size: 13px;
 }
 
+.detail-votes {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px 0;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: #f4f6f8;
+}
+
 .detail-tag {
   padding: 5px 10px;
   border-radius: 999px;
@@ -968,6 +1164,33 @@ body {
 
 .detail-subtitle { margin: 0 0 8px 0; }
 .detail-muted { opacity: 0.7; margin-bottom: 10px; }
+
+.news-detail-card {
+  display: grid;
+  gap: 16px;
+}
+
+.news-detail-section {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  padding-top: 12px;
+}
+
+.news-detail-points {
+  margin: 0;
+  padding-left: 18px;
+  color: #2f2f2f;
+  line-height: 1.55;
+}
+
+.news-detail-reference {
+  font-size: 13px;
+  color: #444;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(198, 40, 40, 0.08);
+}
 
 /* Comments */
 .comment-form {
@@ -1585,51 +1808,186 @@ body {
 /* =========================
    14. VERIFY PAGE (BADGES)
 ========================= */
-.block-verify { display: flex; flex-direction: column; gap: 10px; }
-.verify-copy { margin: 0; color: #555; font-size: 14px; line-height: 1.4; }
-.verify-cta { width: 100%; justify-content: center; }
+.block-verify {
+  display: grid;
+  gap: 12px;
+}
 
-.verify-page { display: flex; flex-direction: column; gap: 16px; }
-.verify-card {
-  background: var(--card-bg);
+.block-verify h3 {
+  color: #1f1f1f;
+  line-height: 1.2;
+}
+
+.verify-kicker {
+  width: fit-content;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: #8e0000;
+  background: rgba(198, 40, 40, 0.14);
+}
+
+.verify-copy {
+  margin: 0;
+  color: #555;
+  font-size: 14px;
+  line-height: 1.45;
+}
+
+.verify-pill-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.verify-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #7a1b1b;
+  background: rgba(198, 40, 40, 0.1);
+  border: 1px solid rgba(198, 40, 40, 0.2);
+}
+
+.verify-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.verify-stat {
+  display: grid;
+  gap: 2px;
+  padding: 9px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(198, 40, 40, 0.14);
+}
+
+.verify-stat strong {
+  font-size: 12px;
+  color: #232323;
+}
+
+.verify-stat span {
+  font-size: 11px;
+  color: #656565;
+}
+
+.verify-cta {
+  width: 100%;
+  justify-content: center;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 800;
   border-radius: 12px;
-  padding: 18px;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 8px 14px rgba(142, 0, 0, 0.18);
+}
+
+.verify-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(198, 40, 40, 0.08), transparent 36%),
+    radial-gradient(circle at 90% 10%, rgba(142, 0, 0, 0.06), transparent 30%);
+  border-radius: 16px;
+}
+
+.verify-card {
+  background: linear-gradient(180deg, #ffffff 0%, #fffafa 100%);
+  border-radius: 18px;
+  border: 1px solid rgba(198, 40, 40, 0.18);
+  padding: 22px;
+  box-shadow: 0 14px 30px rgba(120, 0, 0, 0.12);
 }
 
 .verify-header {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 14px;
+  gap: 14px;
+  margin-bottom: 16px;
+  padding-bottom: 14px;
+  border-bottom: 1px solid rgba(198, 40, 40, 0.15);
 }
 
-.verify-title { margin: 0 0 6px 0; font-size: 22px; }
-.verify-muted { color: #666; font-size: 14px; }
+.verify-header-main {
+  display: grid;
+  gap: 8px;
+}
+
+.verify-kicker {
+  width: fit-content;
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  font-weight: 800;
+  color: #8e0000;
+  background: rgba(198, 40, 40, 0.12);
+}
+
+.verify-title {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.1;
+  color: #1d1d1d;
+}
+
+.verify-muted { color: #585858; font-size: 14px; line-height: 1.45; }
+
+.verify-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.verify-step {
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #3b3b3b;
+  background: rgba(0, 0, 0, 0.06);
+}
 
 .verify-section {
   display: flex;
   flex-direction: column;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
+  padding: 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(198, 40, 40, 0.12);
+  background: rgba(255, 255, 255, 0.85);
 }
 
 .verify-badges { display: flex; flex-wrap: wrap; gap: 10px; }
 
 .verify-badge {
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid rgba(0, 0, 0, 0.15);
   background: #fff;
-  padding: 8px 12px;
+  padding: 9px 13px;
   border-radius: 999px;
   font-size: 14px;
+  font-weight: 700;
   cursor: pointer;
-  transition: background 0.15s ease, border 0.15s ease, transform 0.12s ease;
+  transition: background 0.15s ease, border 0.15s ease, transform 0.12s ease, box-shadow 0.15s ease;
 }
 
 .verify-badge:hover {
   background: var(--red-soft);
   border-color: rgba(198, 40, 40, 0.3);
+  box-shadow: 0 8px 14px rgba(120, 0, 0, 0.14);
 }
 
 .verify-badge:active { transform: scale(0.98); }
@@ -1642,12 +2000,329 @@ body {
 
 .verify-field { display: flex; flex-direction: column; gap: 8px; }
 .verify-label { font-size: 13px; font-weight: 700; color: #444; }
+.verify-help { font-size: 12px; color: #777; margin-top: -2px; }
 
-.verify-actions { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.verify-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(198, 40, 40, 0.08);
+  border: 1px solid rgba(198, 40, 40, 0.15);
+}
+
+.verify-actions .btn-primary {
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 800;
+}
+
 .verify-hint { font-size: 12px; color: #777; }
 
+.verify-trust-row {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.verify-trust-pill {
+  padding: 5px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  color: #5a5a5a;
+  background: rgba(0, 0, 0, 0.05);
+}
+
 /* =========================
-   15. UTILITIES & FOOTER
+   15. WORKOUT LOG
+========================= */
+.block-worklog {
+  display: grid;
+  gap: 12px;
+}
+
+.worklog-copy {
+  margin: 0;
+  font-size: 13px;
+  color: #666;
+}
+
+.worklog-field {
+  display: grid;
+  gap: 6px;
+  font-size: 13px;
+  color: #444;
+  font-weight: 700;
+}
+
+.worklog-input {
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(0, 0, 0, 0.14);
+  background: #fff;
+  font-size: 14px;
+}
+
+.worklog-input:focus {
+  outline: none;
+  border-color: var(--red-main);
+  box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.14);
+}
+
+.worklog-count {
+  font-size: 12px;
+  color: #777;
+  text-align: right;
+}
+
+.worklog-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.worklog-recent {
+  display: grid;
+  gap: 8px;
+  border-top: 1px solid rgba(0, 0, 0, 0.08);
+  padding-top: 10px;
+}
+
+.worklog-recent-title {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: #777;
+  font-weight: 800;
+}
+
+.worklog-item {
+  display: grid;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: #fff;
+  border: 1px solid rgba(198, 40, 40, 0.14);
+}
+
+.worklog-item-date {
+  font-size: 11px;
+  color: #7a7a7a;
+  font-weight: 700;
+}
+
+.worklog-item-text {
+  font-size: 13px;
+  color: #252525;
+}
+
+.worklog-empty {
+  font-size: 13px;
+  color: #777;
+}
+
+.worklog-page {
+  display: grid;
+  gap: 14px;
+}
+
+.worklog-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 12px 14px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.06);
+}
+
+.worklog-page-title {
+  margin: 0;
+  font-size: 24px;
+  color: #222;
+}
+
+.worklog-calendar-card,
+.worklog-editor-card {
+  background: linear-gradient(180deg, #ffffff 0%, #fff9f9 100%);
+  border: 1px solid rgba(198, 40, 40, 0.16);
+  border-radius: 18px;
+  padding: 18px;
+  box-shadow: 0 14px 28px rgba(120, 0, 0, 0.14);
+}
+
+.worklog-calendar-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.worklog-month-nav {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  border: 1px solid rgba(198, 40, 40, 0.28);
+  background: #fff;
+  color: #8e0000;
+  font-size: 22px;
+  line-height: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.12s ease, box-shadow 0.16s ease;
+}
+
+.worklog-month-nav:hover {
+  transform: translateY(-1px);
+  background: #fff1f1;
+  box-shadow: 0 8px 16px rgba(120, 0, 0, 0.14);
+}
+
+.worklog-month-label {
+  font-size: 20px;
+  font-weight: 800;
+  color: #232323;
+  letter-spacing: 0.2px;
+  text-align: center;
+}
+
+.worklog-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.worklog-weekdays span {
+  font-size: 11px;
+  color: #8a8a8a;
+  text-align: center;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+}
+
+.worklog-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.worklog-day {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto;
+  border-radius: 50%;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: transform 0.12s ease, border-color 0.12s ease, box-shadow 0.14s ease, background 0.12s ease;
+}
+
+.worklog-day:hover {
+  transform: translateY(-1px) scale(1.04);
+  border-color: rgba(198, 40, 40, 0.4);
+  box-shadow: 0 8px 14px rgba(120, 0, 0, 0.14);
+}
+
+.worklog-day-blank {
+  width: 48px;
+  height: 48px;
+  margin: 0 auto;
+  border: none;
+  background: transparent;
+  cursor: default;
+}
+
+.worklog-day-num {
+  font-size: 14px;
+  color: #2a2a2a;
+  font-weight: 800;
+}
+
+.worklog-day-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--red-main);
+  position: absolute;
+  bottom: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.worklog-day.is-selected {
+  border-color: var(--red-main);
+  background: linear-gradient(180deg, #ffe9e9 0%, #ffdcdc 100%);
+  box-shadow: 0 0 0 3px rgba(198, 40, 40, 0.22), 0 10px 16px rgba(120, 0, 0, 0.18);
+}
+
+.worklog-day.is-today .worklog-day-num {
+  color: var(--red-main);
+}
+
+.worklog-day.has-entry {
+  border-color: rgba(198, 40, 40, 0.35);
+}
+
+.worklog-day.is-today:not(.is-selected) {
+  box-shadow: 0 0 0 2px rgba(198, 40, 40, 0.18);
+}
+
+.worklog-editor-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+
+.worklog-editor-head h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.worklog-editor-card {
+  display: grid;
+  gap: 8px;
+}
+
+.worklog-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+/* Side-rail consistency for 4 cards */
+.panel-left .news-priority,
+.panel-right .verify-kicker,
+.panel-right .worklog-recent-title {
+  border-radius: 999px;
+  background: rgba(198, 40, 40, 0.12);
+  color: #8e0000;
+}
+
+.panel-right .worklog-recent-title {
+  width: fit-content;
+  padding: 4px 10px;
+  letter-spacing: 0.5px;
+}
+
+/* =========================
+   16. UTILITIES & FOOTER
 ========================= */
 .site-footer {
   margin-top: 40px;
@@ -1751,4 +2426,16 @@ body {
 @media (max-width: 600px) {
   .category-grid { grid-template-columns: repeat(2, 1fr); }
   .explore-feed { grid-template-columns: 1fr; }
+  .worklog-calendar-card,
+  .worklog-editor-card { padding: 12px; }
+  .worklog-grid,
+  .worklog-weekdays { gap: 4px; }
+  .worklog-day,
+  .worklog-day-blank {
+    width: 36px;
+    height: 36px;
+  }
+  .worklog-day-num { font-size: 12px; }
+  .worklog-day-dot { bottom: 4px; }
+  .worklog-month-label { font-size: 16px; }
 }

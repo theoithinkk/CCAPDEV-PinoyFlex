@@ -20,7 +20,7 @@ export function useAuth() {
   function login(username) {
     const users = loadUsers();
     const user = users.find((u) => u.username === username);
-    const next = { username, avatar: user?.avatar };
+    const next = { id: user?.id || null, username, avatar: user?.avatar };
     saveSession(next);
     setSession(next);
   }
