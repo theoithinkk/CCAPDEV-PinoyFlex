@@ -95,6 +95,8 @@ export default function App() {
   const [editPostData, setEditPostData] = useState(null);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [viewingUser, setViewingUser] = useState(null); // For #/user/:username
+  const [reportOpen, setReportOpen] = useState(false);
+  const [reportTarget, setReportTarget] = useState(null);
 
   function openLogin() {
     setAuthMode("login");
@@ -312,6 +314,17 @@ export default function App() {
     setToast("Workout log saved.");
   }
 
+  function openReportModal(target) {
+    setReportTarget(target || null);
+    setReportOpen(true);
+  }
+
+  function submitReport() {
+    setReportOpen(false);
+    setReportTarget(null);
+    setToast("Report submitted.");
+  }
+
   const recentLogEntries = useMemo(
     () =>
       Object.entries(workoutLogs)
@@ -322,10 +335,10 @@ export default function App() {
 
   /* Lock background scroll when any modal is open */
   useEffect(() => {
-    const anyOpen = authOpen || createOpen || editPostData || isEditingProfile;
+    const anyOpen = authOpen || createOpen || editPostData || isEditingProfile || reportOpen;
     document.body.style.overflow = anyOpen ? "hidden" : "";
     return () => (document.body.style.overflow = "");
-  }, [authOpen, createOpen, editPostData, isEditingProfile]);
+  }, [authOpen, createOpen, editPostData, isEditingProfile, reportOpen]);
 
 /* ===== Render ===== */
   return (
@@ -640,6 +653,7 @@ export default function App() {
                                 {...p}
                                 userVote={p.voteByUser?.[session?.username] || 0}
                                 onVote={handleVote}
+                                onReport={(target) => openReportModal(target)}
                             />
                         ))
                     )}
@@ -669,6 +683,7 @@ export default function App() {
                 session={session}
                 openLogin={openLogin}
                 onVotePost={handleVote}
+                onReportPost={(target) => openReportModal(target)}
                 currentUserVote={activePost?.voteByUser?.[session?.username] || 0}
                 onEditPost={() => handleEditPost(activePost)}
                 onDeletePost={(postId) => {
@@ -730,6 +745,7 @@ export default function App() {
                     commentCount={p.commentCount || 0}
                     images={p.images || []}
                     onVote={handleVote}
+                    onReport={(target) => openReportModal(target)}
                   />
                   ))
                 )}
@@ -797,7 +813,7 @@ export default function App() {
                 <button className="btn btn-primary" type="button" onClick={handleQuickLogSave}>
                   Save Log
                 </button>
-                <a className="btn btn-secondary" href="#/log-calendar">
+                <a className="btn btn-primary" href="#/log-calendar">
                   View Calendar
                 </a>
               </div>
@@ -874,6 +890,64 @@ export default function App() {
           }}
         />
       )}
+
+      {reportOpen && (
+        <ReportModal
+          target={reportTarget}
+          onClose={() => setReportOpen(false)}
+          onSubmit={submitReport}
+        />
+      )}
+    </div>
+  );
+}
+
+function ReportModal({ target, onClose, onSubmit }) {
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const targetText = target?.title ? `Post: ${target.title}` : "this content";
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    if (!reason.trim()) {
+      setError("Please add a short report reason.");
+      return;
+    }
+    onSubmit?.({ target, reason: reason.trim() });
+  }
+
+  return (
+    <div className="modal-backdrop" onMouseDown={onClose}>
+      <div className="modal modal-report" onMouseDown={(e) => e.stopPropagation()}>
+        <div className="modal-head">
+          <h2 className="modal-title">Report Content</h2>
+          <button className="modal-x" type="button" onClick={onClose} aria-label="Close">
+            X
+          </button>
+        </div>
+
+        <div className="report-target">{targetText}</div>
+        <p className="report-help">Tell us what is wrong.</p>
+
+        <form className="modal-form" onSubmit={handleSubmit}>
+          <textarea
+            className="field-textarea report-textarea"
+            value={reason}
+            onChange={(e) => setReason(e.target.value)}
+            placeholder="Example: Spam, harassment, misleading info..."
+            rows={5}
+          />
+          {error && <div className="form-error">{error}</div>}
+          <div className="modal-confirm-actions">
+            <button className="btn btn-secondary" type="button" onClick={onClose}>
+              Cancel
+            </button>
+            <button className="btn btn-primary" type="submit">
+              Submit Report
+            </button>
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
@@ -1062,9 +1136,11 @@ function PostCard({
   createdAt = 0,
   images = [],
   onVote,
+  onReport,
 }) {
   const timeText = createdAt ? timeAgo(createdAt) : meta;
   const postHref = `#/post/${id}`;
+  const authorAvatar = getUserByUsername(author)?.avatar || "/avatars/default.png";
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuDir, setMenuDir] = useState("up");
   const menuRef = useRef(null);
@@ -1136,7 +1212,7 @@ function PostCard({
       <div className="post-main">
         <div className="post-left">
           <div className="post-subline post-subline--top">
-            <span className="userchip" aria-hidden="true" />
+            <img className="userchip" src={authorAvatar} alt={`${author || "user"} avatar`} loading="lazy" />
             <a href={`#/user/${author}`} onClick={e => e.stopPropagation()} className="post-author">{author || "user"}</a>
             <span className="dot">•</span>
             <span className="post-time">{timeText || "just now"}</span>
@@ -1200,6 +1276,8 @@ function PostCard({
               onClick={(e) => {
                 e.preventDefault();
                 e.stopPropagation();
+                setMenuOpen(false);
+                onReport?.({ type: "post", id, title });
               }}
             >
               Report
@@ -1272,6 +1350,7 @@ function PostDetail({
   onDeletePost,
   onUpdatePostCommentCount,
   onVotePost,
+  onReportPost,
   currentUserVote = 0,
   onEditPost 
 }) {
@@ -1405,7 +1484,16 @@ function PostDetail({
                 <div className={"detail-menu" + (menuOpen ? " show" : "")} role="menu">
                   <button className="detail-menu-item" type="button">Save</button>
                   <button className="detail-menu-item" type="button">Hide</button>
-                  <button className="detail-menu-item" type="button">Report</button>
+                  <button
+                    className="detail-menu-item"
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onReportPost?.({ type: "post", id: post.id, title: post.title });
+                    }}
+                  >
+                    Report
+                  </button>
                   {isOwner && (
                     <button className="detail-menu-item danger" type="button" onClick={() => { setMenuOpen(false); handleDeletePost(); }}>
                       Delete Post

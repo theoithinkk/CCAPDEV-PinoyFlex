@@ -7,10 +7,24 @@ export function loadUsers() {
   if (!raw) return [];
   try {
     const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
+    if (!Array.isArray(parsed)) return [];
+    return parsed.map((u) => ({
+      ...u,
+      avatar: normalizeAvatarPath(u?.avatar),
+    }));
   } catch {
     return [];
   }
+}
+
+function normalizeAvatarPath(path) {
+  if (!path || typeof path !== "string") return "/avatars/default.png";
+  if (path.startsWith("/avatars/")) return path;
+  if (path.startsWith("src/assets/avatars/")) {
+    const file = path.split("/").pop();
+    return `/avatars/${file}`;
+  }
+  return path;
 }
 
 export function updateUser(oldUsername, updatedFields) {

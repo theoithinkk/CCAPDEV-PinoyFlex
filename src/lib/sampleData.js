@@ -5,11 +5,11 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 const now = Date.now();
 
 export const SAMPLE_USERS = [
-  { id: "u_theo", username: "theo", password: "1234", avatar: "/avatars/default.png" },
-  { id: "u_mj", username: "marcjared", password: "1234", avatar: "/avatars/default.png" },
-  { id: "u_nathaniel", username: "nathaniel", password: "1234", avatar: "/avatars/default.png" },
-  { id: "u_ian", username: "ian", password: "1234", avatar: "/avatars/default.png" },
-  { id: "u_arturo", username: "arturo", password: "1234", avatar: "/avatars/default.png" },
+  { id: "u_theo", username: "theo", password: "1234", avatar: "/avatars/blank.png" },
+  { id: "u_marc", username: "marc", password: "1234", avatar: "/avatars/mj.png" },
+  { id: "u_nathaniel", username: "nathaniel", password: "1234", avatar: "/avatars/blank.png" },
+  { id: "u_ian", username: "ian", password: "1234", avatar: "/avatars/blank.png" },
+  { id: "u_arturo", username: "arturo", password: "1234", avatar: "/avatars/arturo.png" },
 ];
 
 export const SAMPLE_POSTS = [
@@ -33,8 +33,8 @@ export const SAMPLE_POSTS = [
     body:
       "I'm currently cutting from 76kg to around 70kg and trying to keep food costs manageable. This week's prep is chicken adobo (lean cut), garlic rice portions, boiled eggs, and mixed vegetables packed for 5 workdays.\n\nTarget is around 1700-1900 kcal/day with at least 130g protein. Posting this in case anyone has suggestions to improve variety without increasing cost too much.",
     tag: "Meal Prep",
-    author: "mj",
-    authorId: "u_mj",
+    author: "marc",
+    authorId: "u_marc",
     createdAt: now - 2 * DAY_MS,
     votes: 21,
     voteByUser: {},
@@ -90,7 +90,7 @@ export const SAMPLE_COMMENTS_BY_POST = {
     {
       id: "sample_comment_1",
       postId: "sample_post_1",
-      author: "mj",
+      author: "marc",
       body: "For your schedule, full body 3x/week is easier to recover from and progress on.",
       createdAt: now - DAY_MS + 60 * 60 * 1000,
     },
