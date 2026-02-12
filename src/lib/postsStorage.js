@@ -24,7 +24,7 @@ export function seedPostsIfEmpty() {
 
 export function addPost(newPost) {
   const posts = loadPosts();
-  const next = [newPost, ...posts]; // newest first
+  const next = [newPost, ...posts]; 
   savePosts(next);
   return next;
 }
@@ -59,4 +59,14 @@ export function voteOnPost(postId, username, direction) {
 
   savePosts(next);
   return next;
+}
+
+export function updatePost(postId, updates) {
+  const posts = loadPosts();
+  const index = posts.findIndex(p => p.id === postId);
+  if (index === -1) return posts;
+  
+  posts[index] = { ...posts[index], ...updates };
+  savePosts(posts);
+  return posts;
 }

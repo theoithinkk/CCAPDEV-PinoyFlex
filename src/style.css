@@ -2390,6 +2390,38 @@ body {
   animation: spin 0.8s linear infinite;
 }
 
+.post-author,
+.detail-meta a,
+.comment-meta a {
+  text-decoration: none !important; 
+  color: #646cff;
+  font-weight: 700;
+}
+
+
+.btn-edit-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #fff;
+  border: 1px solid #d1d5db; 
+  color: #374151; 
+  padding: 6px 14px;
+  border-radius: 999px; 
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  margin-right: 8px; 
+}
+
+.btn-edit-action:hover {
+  border-color: #b91c1c; 
+  color: #b91c1c;
+  background-color: #fff1f2; 
+  transform: translateY(-1px);
+}
+
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .toast {

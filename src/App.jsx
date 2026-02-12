@@ -10,6 +10,11 @@ import Explore from "./components/Explore";
 import Trending from "./components/Trending";
 import logoLight from "./assets/logo/lightmode.png";
 import logoDark from "./assets/logo/darkmode.png";
+import EditPostModal from "./components/EditPostModal";
+import EditProfileModal from "./components/EditProfileModal";
+import { updatePost } from "./lib/postsStorage";
+import { updateComment } from "./lib/commentsStorage";
+import { getUserByUsername } from "./lib/authStorage";
 
 const tagColorCache = new Map();
 const FEATURED_NEWS_ROUTE = "#/news/periodized-upper-lower-brief";
@@ -86,6 +91,11 @@ export default function App() {
   const [authMode, setAuthMode] = useState("login"); // login | signup
   const [toast, setToast] = useState("");
 
+  /* ===== Edit States (Post & Profile) ===== */
+  const [editPostData, setEditPostData] = useState(null);
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [viewingUser, setViewingUser] = useState(null); // For #/user/:username
+
   function openLogin() {
     setAuthMode("login");
     setAuthOpen(true);
@@ -154,9 +164,19 @@ export default function App() {
     return () => window.removeEventListener("hashchange", onHashChange);
   }, []);
 
+  // -- Parse Route Params --
   const activePostId = parsePostIdFromHash(route);
   const activePost = activePostId ? posts.find((p) => p.id === activePostId) : null;
+  
+  const searchQuery = route.startsWith("#/search") 
+    ? new URLSearchParams(route.split("?")[1]).get("q") || "" 
+    : "";
+    
+  const userProfileTarget = route.startsWith("#/user/") 
+    ? route.split("/user/")[1] 
+    : null;
 
+  // -- Data Loading --
   useEffect(() => {
     const now = typeof performance !== "undefined" && performance.now ? () => performance.now() : () => Date.now();
     const start = now();
@@ -178,6 +198,14 @@ export default function App() {
     const t = setTimeout(() => setAppReady(true), delay);
     return () => clearTimeout(t);
   }, []);
+
+  // -- Load User Profile Data --
+  useEffect(() => {
+    if (userProfileTarget) {
+      const u = getUserByUsername(userProfileTarget);
+      setViewingUser(u);
+    }
+  }, [userProfileTarget, posts]);
 
   useEffect(() => {
     if (!isLoggedIn) {
@@ -219,6 +247,17 @@ export default function App() {
     const next = addPost(newPost);
     setPosts(next);
     setCreateOpen(false);
+  }
+
+  /* ===== Editing Handlers ===== */
+  function handleEditPost(post) {
+    setEditPostData(post);
+  }
+
+  function saveEditedPost(postId, updates) {
+    const next = updatePost(postId, updates);
+    setPosts(next);
+    setEditPostData(null);
   }
 
   function updatePostCommentCount(postId, count) {
@@ -283,10 +322,10 @@ export default function App() {
 
   /* Lock background scroll when any modal is open */
   useEffect(() => {
-    const anyOpen = authOpen || createOpen;
+    const anyOpen = authOpen || createOpen || editPostData || isEditingProfile;
     document.body.style.overflow = anyOpen ? "hidden" : "";
     return () => (document.body.style.overflow = "");
-  }, [authOpen, createOpen]);
+  }, [authOpen, createOpen, editPostData, isEditingProfile]);
 
 /* ===== Render ===== */
   return (
@@ -352,6 +391,10 @@ export default function App() {
                 onChange={(e) => setSearchValue(e.target.value)}
                 onFocus={() => setSearchOpen(true)}
                 onKeyDown={(e) => {
+                  if (e.key === "Enter") {
+                     setSearchOpen(false);
+                     window.location.hash = `#/search?q=${encodeURIComponent(searchValue)}`;
+                  }
                   if (e.key === "Escape") setSearchOpen(false);
                 }}
               />
@@ -373,6 +416,7 @@ export default function App() {
                         onClick={() => {
                           setSearchValue(item);
                           setSearchOpen(false);
+                          window.location.hash = `#/search?q=${encodeURIComponent(item)}`;
                         }}
                       >
                         <span className="search-item-icon">#</span>
@@ -395,6 +439,7 @@ export default function App() {
                         onClick={() => {
                           setSearchValue(item);
                           setSearchOpen(false);
+                          window.location.hash = `#/search?q=${encodeURIComponent(item)}`;
                         }}
                       >
                         <span className="search-item-icon">R</span>
@@ -576,8 +621,43 @@ export default function App() {
                     return ok;
                   }}
                 />
+              ) : route.startsWith("#/search") ? (
+                // === SEARCH RESULTS ===
+                <div className="feed-header">
+                    <h2>Search Results: "{searchQuery}"</h2>
+                    {posts.filter(p => 
+                        p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                        p.body.toLowerCase().includes(searchQuery.toLowerCase())
+                    ).length === 0 ? (
+                        <p className="detail-muted">No matches found.</p>
+                    ) : (
+                        posts.filter(p => 
+                            p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+                            p.body.toLowerCase().includes(searchQuery.toLowerCase())
+                        ).map(p => (
+                            <PostCard
+                                key={p.id}
+                                {...p}
+                                userVote={p.voteByUser?.[session?.username] || 0}
+                                onVote={handleVote}
+                            />
+                        ))
+                    )}
+                </div>
+              ) : route.startsWith("#/user/") ? (
+                // === VIEW USER PROFILE ===
+                <Profile 
+                    user={viewingUser} 
+                    isCurrentUser={session?.username === viewingUser?.username}
+                    onEdit={() => setIsEditingProfile(true)}
+                />
               ) : route === "#/profile" ? (
-                <Profile />
+                // === MY PROFILE ===
+                <Profile 
+                    user={session} 
+                    isCurrentUser={true}
+                    onEdit={() => setIsEditingProfile(true)}
+                />
               ) : route.startsWith("#/explore") ? (
                 <Explore />
               ) : route === "#/trending" ? (
@@ -590,6 +670,7 @@ export default function App() {
                 openLogin={openLogin}
                 onVotePost={handleVote}
                 currentUserVote={activePost?.voteByUser?.[session?.username] || 0}
+                onEditPost={() => handleEditPost(activePost)}
                 onDeletePost={(postId) => {
                   const next = deletePost(postId);
                   setPosts(next);
@@ -632,7 +713,6 @@ export default function App() {
                   </button>
                 </div>
 
-                {/* FEED */}
                 {posts.length === 0 ? (
                   <div className="detail-muted">No posts yet.</div>
                 ) : (
@@ -657,7 +737,6 @@ export default function App() {
             )}
           </main>
 
-          {/* ===== Right rail ===== */}
           <aside className="panel panel-right">
             <div className="block block-verify">
               <div className="verify-kicker">Verification Program</div>
@@ -741,7 +820,6 @@ export default function App() {
         </div>
       </div>
 
-      {/* ===== Footer ===== */}
       <footer className="site-footer">
         <div className="footer-inner">
           <div className="footer-left">
@@ -755,7 +833,6 @@ export default function App() {
         </div>
       </footer>
 
-      {/* ===== Auth modal ===== */}
       {toast && (
         <div className="toast" role="status" onAnimationEnd={() => setToast("")}>
           {toast}
@@ -773,11 +850,28 @@ export default function App() {
         />
       )}
 
-      {/* ===== Create post modal ===== */}
       {createOpen && (
         <CreatePostModal
           onClose={() => setCreateOpen(false)}
           onCreate={handleCreate}
+        />
+      )}
+      
+      {editPostData && (
+        <EditPostModal 
+          post={editPostData} 
+          onClose={() => setEditPostData(null)} 
+          onSave={saveEditedPost} 
+        />
+      )}
+
+      {isEditingProfile && session && (
+        <EditProfileModal
+          user={session}
+          onClose={() => setIsEditingProfile(false)}
+          onSuccess={(updates) => {
+             window.location.reload(); 
+          }}
         />
       )}
     </div>
@@ -955,9 +1049,6 @@ function WorkoutLogCalendar({ logs, isLoggedIn, onRequireLogin, onSaveEntry }) {
   );
 }
 
-/* =========================
-   Post Card (feed preview)
-========================= */
 function PostCard({
   id,
   title,
@@ -1044,10 +1135,9 @@ function PostCard({
 
       <div className="post-main">
         <div className="post-left">
-          {/* username + icon + time ABOVE title */}
           <div className="post-subline post-subline--top">
             <span className="userchip" aria-hidden="true" />
-            <span className="post-author">{author || "user"}</span>
+            <a href={`#/user/${author}`} onClick={e => e.stopPropagation()} className="post-author">{author || "user"}</a>
             <span className="dot">•</span>
             <span className="post-time">{timeText || "just now"}</span>
           </div>
@@ -1056,17 +1146,15 @@ function PostCard({
 
           {preview && <div className="post-preview">{preview}</div>}
 
-          {/* ✅ one-image-at-a-time carousel (NO media-strip wrapper) */}
           {images.length > 0 && <PostMedia images={images} />}
 
-          {/* comment count stays where it was */}
           <div className="post-comments">
             💬 <span className="post-comments-count">{commentCount}</span>
           </div>
         </div>
 
         <div className="post-right">
-                    <button
+            <button
             className="post-more"
             type="button"
             aria-label="Post options"
@@ -1129,9 +1217,7 @@ function PostCard({
   );
 }
 
-/* =========================
-   Post media (feed carousel)
-========================= */
+
 function PostMedia({ images }) {
   const [idx, setIdx] = useState(0);
   const total = images.length;
@@ -1177,9 +1263,7 @@ function PostMedia({ images }) {
   );
 }
 
-/* =========================
-   Post Detail (open post)
-========================= */
+
 function PostDetail({
   post,
   isLoggedIn,
@@ -1189,6 +1273,7 @@ function PostDetail({
   onUpdatePostCommentCount,
   onVotePost,
   currentUserVote = 0,
+  onEditPost 
 }) {
   const [comments, setComments] = useState([]);
   const [text, setText] = useState("");
@@ -1196,6 +1281,10 @@ function PostDetail({
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
+  
+  // Comment Editing State
+  const [editingCommentId, setEditingCommentId] = useState(null);
+  const [editBody, setEditBody] = useState("");
 
   useEffect(() => {
     if (!post) return;
@@ -1206,7 +1295,7 @@ function PostDetail({
   if (!post) {
     return (
       <div className="post-detail">
-        <a className="btn btn-secondary" href="#/">← Back</a>
+        <a className="btn btn-secondary" href="#/" style={{marginBottom:'1rem', display:'inline-block'}}>← Back</a>
         <div className="detail-card">
           <h2 className="detail-title">Post not found</h2>
           <div className="detail-muted">This post may have been deleted.</div>
@@ -1221,7 +1310,6 @@ function PostDetail({
       openLogin();
       return;
     }
-
     const body = text.trim();
     if (body.length < 2) return;
 
@@ -1233,12 +1321,16 @@ function PostDetail({
       body,
       createdAt: now,
     };
-
     const next = addComment(post.id, newComment);
     setComments(next);
     setText("");
-
     onUpdatePostCommentCount(post.id, next.length);
+  }
+  
+  function saveCommentEdit(cId) {
+      const next = updateComment(post.id, cId, editBody);
+      setComments(next);
+      setEditingCommentId(null);
   }
 
   const images = post?.images || [];
@@ -1248,10 +1340,7 @@ function PostDetail({
     (session?.username === post.author || (session?.id && post.authorId && session.id === post.authorId));
 
   function handleDeletePost() {
-    if (!isLoggedIn) {
-      openLogin();
-      return;
-    }
+    if (!isLoggedIn) { openLogin(); return; }
     if (!isOwner) return;
     setConfirmOpen(true);
   }
@@ -1264,10 +1353,7 @@ function PostDetail({
   }
 
   function handleDeleteComment(commentId, commentAuthor) {
-    if (!isLoggedIn) {
-      openLogin();
-      return;
-    }
+    if (!isLoggedIn) { openLogin(); return; }
     const canDelete = isOwner || session?.username === commentAuthor;
     if (!canDelete) return;
     const next = deleteComment(post.id, commentId);
@@ -1276,117 +1362,83 @@ function PostDetail({
   }
 
   function detailPrev(e) {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     if (detailTotal < 2) return;
     setDetailIdx((v) => (v - 1 + detailTotal) % detailTotal);
   }
-
   function detailNext(e) {
-    e.preventDefault();
-    e.stopPropagation();
+    e.preventDefault(); e.stopPropagation();
     if (detailTotal < 2) return;
     setDetailIdx((v) => (v + 1) % detailTotal);
   }
 
   return (
     <div className="post-detail">
-      <a className="btn btn-secondary" href="#/">← Back</a>
+      <a className="btn btn-secondary" href="#/" style={{marginBottom:'1rem', display:'inline-block'}}>← Back</a>
 
       <div className="detail-card">
         <div className="detail-head">
           <h2 className="detail-title">{post.title}</h2>
           <div className="detail-actions">
-                        <button
-              className="detail-more"
-              type="button"
-              aria-label="Post options"
-              aria-haspopup="menu"
-              aria-expanded={menuOpen}
-              onClick={() => setMenuOpen((v) => !v)}
-            >
-              ⋯
-            </button>
-            <div
-              className={"detail-menu" + (menuOpen ? " show" : "")}
-              role="menu"
-            >
-              <button className="detail-menu-item" type="button">
-                Save
+            
+            {/* === EDITED BUTTON HERE === */}
+            {isOwner && (
+              <button 
+                className="btn-edit-action" 
+                onClick={onEditPost}
+              >
+                Edit Post
               </button>
-              <button className="detail-menu-item" type="button">
-                Hide
-              </button>
-              <button className="detail-menu-item" type="button">
-                Report
-              </button>
-              {isOwner && (
+            )}
+
+            <div style={{position: 'relative'}}>
                 <button
-                  className="detail-menu-item danger"
+                  className="detail-more"
                   type="button"
-                  onClick={() => {
-                    setMenuOpen(false);
-                    handleDeletePost();
-                  }}
+                  aria-label="Post options"
+                  aria-haspopup="menu"
+                  aria-expanded={menuOpen}
+                  onClick={() => setMenuOpen((v) => !v)}
                 >
-                  Delete Post
+                  ⋯
                 </button>
-              )}
+                <div className={"detail-menu" + (menuOpen ? " show" : "")} role="menu">
+                  <button className="detail-menu-item" type="button">Save</button>
+                  <button className="detail-menu-item" type="button">Hide</button>
+                  <button className="detail-menu-item" type="button">Report</button>
+                  {isOwner && (
+                    <button className="detail-menu-item danger" type="button" onClick={() => { setMenuOpen(false); handleDeletePost(); }}>
+                      Delete Post
+                    </button>
+                  )}
+                </div>
             </div>
           </div>
         </div>
+
         <div className="detail-meta">
-          by <strong>{post.author}</strong> · {timeAgo(post.createdAt)}
-          <span className="detail-tag" style={getTagStyle(post.tag)}>
-            {post.tag}
-          </span>
+          by <a href={`#/user/${post.author}`}><strong>{post.author}</strong></a> · {timeAgo(post.createdAt)} {post.lastEdited && "(edited)"}
+          <span className="detail-tag" style={getTagStyle(post.tag)}>{post.tag}</span>
           <span className="detail-tag">{comments.length} comments</span>
         </div>
+
         <div className="detail-votes">
-          <button
-            className={"vote-btn upvote" + (currentUserVote === 1 ? " is-active" : "")}
-            type="button"
-            onClick={() => onVotePost?.(post.id, 1)}
-          >
-            ↑
-          </button>
+          <button className={"vote-btn upvote" + (currentUserVote === 1 ? " is-active" : "")} type="button" onClick={() => onVotePost?.(post.id, 1)}>↑</button>
           <span className="vote-count">{post.votes || 0}</span>
-          <button
-            className={"vote-btn downvote" + (currentUserVote === -1 ? " is-active" : "")}
-            type="button"
-            onClick={() => onVotePost?.(post.id, -1)}
-          >
-            ↓
-          </button>
+          <button className={"vote-btn downvote" + (currentUserVote === -1 ? " is-active" : "")} type="button" onClick={() => onVotePost?.(post.id, -1)}>↓</button>
         </div>
+
         {detailTotal > 0 && (
           <div className="detail-media">
             <div className="detail-media-frame" aria-label="Post images">
-              <button
-                className="detail-media-imgwrap"
-                type="button"
-                onClick={() => setLightboxOpen(true)}
-                aria-label="Open image"
-              >
-                <img
-                  className="detail-media-img"
-                  key={images[detailIdx] || detailIdx}
-                  src={images[detailIdx]}
-                  alt={`Post image ${detailIdx + 1} of ${detailTotal}`}
-                  loading="lazy"
-                />
+              <button className="detail-media-imgwrap" type="button" onClick={() => setLightboxOpen(true)}>
+                <img className="detail-media-img" key={images[detailIdx] || detailIdx} src={images[detailIdx]} alt="Post media" />
               </button>
-
               {detailTotal > 1 && (
                 <>
-                  <button className="detail-media-nav detail-prev" type="button" onClick={detailPrev} aria-label="Previous image">
-                    ‹
-                  </button>
-                  <button className="detail-media-nav detail-next" type="button" onClick={detailNext} aria-label="Next image">
-                    ›
-                  </button>
-
-                  <div className="detail-media-dots" aria-label="Image position">
+                  <button className="detail-media-nav detail-prev" type="button" onClick={detailPrev}>‹</button>
+                  <button className="detail-media-nav detail-next" type="button" onClick={detailNext}>›</button>
+                  <div className="detail-media-dots">
                     {images.map((_, i) => (
                       <span key={i} className={"detail-media-dot" + (i === detailIdx ? " is-active" : "")} />
                     ))}
@@ -1401,18 +1453,9 @@ function PostDetail({
 
       <div className="detail-card">
         <h3 className="detail-subtitle">Comments</h3>
-
         <form className="comment-form" onSubmit={submitComment}>
-          <input
-            className="comment-input"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            placeholder={isLoggedIn ? "Write a comment…" : "Log in to comment…"}
-            disabled={!isLoggedIn}
-          />
-          <button className="btn btn-primary" type="submit" disabled={!isLoggedIn}>
-            Comment
-          </button>
+          <input className="comment-input" value={text} onChange={(e) => setText(e.target.value)} placeholder={isLoggedIn ? "Write a comment…" : "Log in to comment…"} disabled={!isLoggedIn} />
+          <button className="btn btn-primary" type="submit" disabled={!isLoggedIn}>Comment</button>
         </form>
 
         <div className="comment-list">
@@ -1423,21 +1466,32 @@ function PostDetail({
               <div className="comment" key={c.id}>
                 <div className="comment-head">
                   <div className="comment-meta">
-                    <strong>{c.author}</strong> · {timeAgo(c.createdAt)}
+                    <a href={`#/user/${c.author}`}><strong>{c.author}</strong></a> · {timeAgo(c.createdAt)} {c.lastEdited && <span style={{fontSize:'0.8em', opacity:0.7}}> (edited)</span>}
                   </div>
-                  {(isOwner || session?.username === c.author) && (
-                    <div className="comment-actions">
-                      <button
-                        className="comment-delete"
-                        type="button"
-                        onClick={() => handleDeleteComment(c.id, c.author)}
-                      >
+                  <div className="comment-actions">
+                     {isLoggedIn && c.author === session?.username && (
+                       <button className="comment-delete" style={{marginRight:'10px', color:'var(--text-secondary)'}} onClick={() => { setEditingCommentId(c.id); setEditBody(c.body); }}>
+                         Edit
+                       </button>
+                     )}
+                     {(isOwner || session?.username === c.author) && (
+                      <button className="comment-delete" type="button" onClick={() => handleDeleteComment(c.id, c.author)}>
                         Delete
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
-                <div className="comment-body">{c.body}</div>
+                {editingCommentId === c.id ? (
+                    <div className="comment-edit-box" style={{marginTop:'5px'}}>
+                        <textarea value={editBody} onChange={e => setEditBody(e.target.value)} className="field-textarea" style={{width: '100%', marginBottom: '5px'}}/>
+                        <div style={{display:'flex', gap:'5px'}}>
+                            <button className="btn btn-primary btn-sm" style={{padding:'4px 8px'}} onClick={() => saveCommentEdit(c.id)}>Save</button>
+                            <button className="btn btn-secondary btn-sm" style={{padding:'4px 8px'}} onClick={() => setEditingCommentId(null)}>Cancel</button>
+                        </div>
+                    </div>
+                ) : (
+                    <div className="comment-body">{c.body}</div>
+                )}
               </div>
             ))
           )}
@@ -1445,28 +1499,11 @@ function PostDetail({
       </div>
 
       {lightboxOpen && (
-        <div className="lightbox" role="dialog" aria-label="Image preview">
-          <button className="lightbox-backdrop" type="button" onClick={() => setLightboxOpen(false)} aria-label="Close" />
+        <div className="lightbox">
+          <button className="lightbox-backdrop" onClick={() => setLightboxOpen(false)} />
           <div className="lightbox-body">
-            <img
-              className="lightbox-img"
-              key={`lightbox-${images[detailIdx] || detailIdx}`}
-              src={images[detailIdx]}
-              alt={`Post image ${detailIdx + 1} of ${detailTotal}`}
-            />
-            {detailTotal > 1 && (
-              <>
-                <button className="lightbox-nav lightbox-prev" type="button" onClick={detailPrev} aria-label="Previous image">
-                  ‹
-                </button>
-                <button className="lightbox-nav lightbox-next" type="button" onClick={detailNext} aria-label="Next image">
-                  ›
-                </button>
-              </>
-            )}
-            <button className="lightbox-close" type="button" onClick={() => setLightboxOpen(false)} aria-label="Close">
-              ✕
-            </button>
+            <img className="lightbox-img" src={images[detailIdx]} alt="" />
+            <button className="lightbox-close" onClick={() => setLightboxOpen(false)}>✕</button>
           </div>
         </div>
       )}
@@ -1476,20 +1513,12 @@ function PostDetail({
           <div className="modal modal-confirm" onMouseDown={(e) => e.stopPropagation()}>
             <div className="modal-head">
               <h2 className="modal-title">Delete post?</h2>
-              <button className="modal-x" type="button" onClick={() => setConfirmOpen(false)}>
-                X
-              </button>
+              <button className="modal-x" onClick={() => setConfirmOpen(false)}>X</button>
             </div>
-            <p className="modal-confirm-text">
-              This will permanently delete the post and all its comments. This action can't be undone.
-            </p>
+            <p className="modal-confirm-text">Permanently delete this post?</p>
             <div className="modal-confirm-actions">
-              <button className="btn btn-secondary" type="button" onClick={() => setConfirmOpen(false)}>
-                Cancel
-              </button>
-              <button className="btn btn-danger" type="button" onClick={confirmDeletePost}>
-                Delete
-              </button>
+              <button className="btn btn-secondary" onClick={() => setConfirmOpen(false)}>Cancel</button>
+              <button className="btn btn-danger" onClick={confirmDeletePost}>Delete</button>
             </div>
           </div>
         </div>
@@ -1498,9 +1527,6 @@ function PostDetail({
   );
 }
 
-/* =========================
-   Helpers
-========================= */
 function timeAgo(ts) {
   const diff = Date.now() - ts;
   const mins = Math.floor(diff / 60000);
@@ -1547,18 +1573,4 @@ function buildCalendarCells(monthDate) {
     cells.push({ day, dateKey: key });
   }
   return cells;
-}
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+} 
