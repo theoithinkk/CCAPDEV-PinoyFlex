@@ -1,4 +1,3 @@
-import { useAuth } from "../hooks/useAuth";
 import { loadComments } from "../lib/commentsStorage";
 import { loadPosts } from "../lib/postsStorage";
 import EarlyLifter from "../assets/badges/EarlyLifter.png";
@@ -7,44 +6,64 @@ import TopContributor from "../assets/badges/TopContributor.png";
 import MealPrepPro from "../assets/badges/MealPrepPro.png";
 import FormGuru from "../assets/badges/FormGuru.png";
 
-export default function Profile() {
-  const { session, isLoggedIn } = useAuth();
+function timeAgo(ts) {
+  const diff = Date.now() - ts;
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
 
-  if (!isLoggedIn || !session) {
+export default function Profile({ user, isCurrentUser, onEdit }) {
+  if (!user) {
     return (
       <div className="profile-card">
-        <h2>Please log in to view your profile</h2>
+        <h2>User not found</h2>
       </div>
     );
   }
 
   const allPosts = loadPosts();
-  const posts = allPosts.filter((p) => p.author === session.username);
+  const posts = allPosts.filter((p) => p.author === user.username);
 
   const comments = [];
   allPosts.forEach((p) => {
     const postComments = loadComments(p.id);
     postComments.forEach((c) => {
-      if (c.author === session.username) {
+      if (c.author === user.username) {
         comments.push({ ...c, postTitle: p.title });
       }
     });
   });
 
-  function timeAgo(ts) {
-    const diff = Date.now() - ts;
-    const mins = Math.floor(diff / 60000);
-    if (mins < 1) return "just now";
-    if (mins < 60) return `${mins}m ago`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}h ago`;
-    const days = Math.floor(hrs / 24);
-    return `${days}d ago`;
-  }
-
   return (
     <div className="block profile-edit-card">
-      <h2 className="profile-title">@{session.username}</h2>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '1rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <img 
+            src={user.avatar || "/avatars/default.png"} 
+            alt={user.username} 
+            style={{ width: 80, height: 80, borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--border)' }} 
+          />
+          <div>
+            <h2 className="profile-title" style={{ margin: 0 }}>@{user.username}</h2>
+            {user.bio && (
+              <p style={{ marginTop: '0.5rem', color: 'var(--text-secondary)', fontSize: '0.95rem', maxWidth: '400px' }}>
+                {user.bio}
+              </p>
+            )}
+          </div>
+        </div>
+
+        {isCurrentUser && (
+          <button className="btn btn-secondary" onClick={onEdit}>
+            Edit Profile
+          </button>
+        )}
+      </div>
 
       <div className="profile-section">
         <h3 className="profile-section-title">Community</h3>
@@ -54,12 +73,12 @@ export default function Profile() {
             <div className="profile-stat-label">Followers</div>
           </div>
           <div className="profile-stat">
-            <div className="profile-stat-value">64</div>
-            <div className="profile-stat-label">Following</div>
+            <div className="profile-stat-value">{posts.length}</div>
+            <div className="profile-stat-label">Posts</div>
           </div>
           <div className="profile-stat">
-            <div className="profile-stat-value">12</div>
-            <div className="profile-stat-label">Badges</div>
+            <div className="profile-stat-value">{comments.length}</div>
+            <div className="profile-stat-label">Comments</div>
           </div>
         </div>
       </div>
@@ -90,24 +109,28 @@ export default function Profile() {
         </div>
       </div>
 
-      <div className="profile-section">
-        <h3 className="profile-section-title">Settings</h3>
-        <div className="profile-settings">
-          <div className="setting-row">
-            <div>
-              <div className="setting-title">Dark Mode</div>
-              <div className="setting-subtitle">Coming soon</div>
+      {isCurrentUser && (
+        <div className="profile-section">
+          <h3 className="profile-section-title">Settings</h3>
+          <div className="profile-settings">
+            <div className="setting-row">
+              <div>
+                <div className="setting-title">Dark Mode</div>
+                <div className="setting-subtitle">Coming soon</div>
+              </div>
+              <label className="toggle">
+                <input type="checkbox" disabled />
+                <span className="toggle-track" />
+              </label>
             </div>
-            <label className="toggle">
-              <input type="checkbox" disabled />
-              <span className="toggle-track" />
-            </label>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="profile-section">
-        <h3 className="profile-section-title">Your Posts ({posts.length})</h3>
+        <h3 className="profile-section-title">
+          {isCurrentUser ? "Your Posts" : "Posts"} ({posts.length})
+        </h3>
         {posts.length === 0 ? (
           <div className="detail-muted">No posts yet.</div>
         ) : (
@@ -115,7 +138,9 @@ export default function Profile() {
             {posts.map((p) => (
               <a key={p.id} className="profile-item" href={`#/post/${p.id}`}>
                 <div className="profile-item-title">{p.title}</div>
-                <div className="profile-item-meta">{timeAgo(p.createdAt)}</div>
+                <div className="profile-item-meta">
+                  {timeAgo(p.createdAt)} {p.lastEdited && <span style={{fontSize:'0.8em', opacity:0.7}}>(edited)</span>}
+                </div>
               </a>
             ))}
           </div>
@@ -123,7 +148,9 @@ export default function Profile() {
       </div>
 
       <div className="profile-section">
-        <h3 className="profile-section-title">Your Comments ({comments.length})</h3>
+        <h3 className="profile-section-title">
+          {isCurrentUser ? "Your Comments" : "Comments"} ({comments.length})
+        </h3>
         {comments.length === 0 ? (
           <div className="detail-muted">No comments yet.</div>
         ) : (

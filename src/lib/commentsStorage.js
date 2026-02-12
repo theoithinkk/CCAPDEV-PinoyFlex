@@ -1,13 +1,6 @@
 import { SAMPLE_COMMENTS_BY_POST } from "./sampleData";
-const LS_COMMENTS = "pf_comments_v1";
 
-/**
- * Stored as an object:
- * {
- *   "postId1": [ { id, postId, author, body, createdAt }, ... ],
- *   "postId2": [ ... ]
- * }
- */
+const LS_COMMENTS = "pf_comments_v1";
 
 function loadAll() {
   const raw = localStorage.getItem(LS_COMMENTS);
@@ -40,7 +33,7 @@ export function loadComments(postId) {
 export function addComment(postId, comment) {
   const map = loadAll();
   const existing = Array.isArray(map[postId]) ? map[postId] : [];
-  const next = [...existing, comment]; // oldest -> newest
+  const next = [...existing, comment]; 
   map[postId] = next;
   saveAll(map);
   return next;
@@ -65,4 +58,22 @@ export function deleteCommentsForPost(postId) {
     delete map[postId];
     saveAll(map);
   }
+}
+
+export function updateComment(postId, commentId, newBody) {
+  const map = loadAll();
+  const postComments = Array.isArray(map[postId]) ? map[postId] : [];
+  
+  const index = postComments.findIndex(c => c.id === commentId);
+  if (index !== -1) {
+    postComments[index].body = newBody;
+    postComments[index].lastEdited = Date.now(); 
+    
+    map[postId] = postComments;
+    saveAll(map);
+
+    return [...postComments];
+  }
+  
+  return postComments;
 }

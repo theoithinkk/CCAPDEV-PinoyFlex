@@ -74,3 +74,25 @@ export function clearSession() {
   localStorage.removeItem(LS_SESSION);
 }
 
+export function getUserByUsername(username) {
+  const users = loadUsers();
+  return users.find(u => u.username === username);
+}
+
+export function updateUserProfile(username, updates) {
+  const users = loadUsers();
+  const index = users.findIndex(u => u.username === username);
+  if (index === -1) return null;
+
+  const updatedUser = { ...users[index], ...updates };
+  users[index] = updatedUser;
+  saveUsers(users);
+
+  const session = JSON.parse(localStorage.getItem("pf_session"));
+  if (session && session.username === username) {
+    localStorage.setItem("pf_session", JSON.stringify(updatedUser));
+  }
+  
+  return updatedUser;
+}
+
