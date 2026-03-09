@@ -28,8 +28,11 @@ router.post("/login", async (req, res) => {
   try {
     const { username, password } = req.body;
     const user = await User.findOne({ username: username.trim() });
-    if (!user) return res.status(404).json({ error: "User not found" });
-    if (user.password !== password) return res.status(401).json({ error: "Wrong password" });
+
+    if (!user || user.password !== password) {
+      return res.status(401).json({ error: "Invalid username or password" });
+    }
+
     const { password: _pw, ...safeUser } = user.toObject();
     res.json({ ok: true, user: safeUser });
   } catch (err) {
@@ -57,18 +60,18 @@ router.post("/register", async (req, res) => {
   }
 });
 
-// POST /api/users/login
-router.post("/login", async (req, res) => {
+// PATCH /api/users/:username
+// might refactor when we add actual file uploads instead of using links as a medium of adding images/files
+router.patch("/:username", async (req, res) => {
   try {
-    const { username, password } = req.body;
-    const user = await User.findOne({ username: username.trim() });
-
-    if (!user || user.password !== password) {
-      return res.status(401).json({ error: "Invalid username or password" });
-    }
-
-    const { password: _pw, ...safeUser } = user.toObject();
-    res.json({ ok: true, user: safeUser });
+    const { avatar, bio } = req.body;
+    const user = await User.findOneAndUpdate(
+      { username: req.params.username },
+      { $set: { avatar, bio } },
+      { new: true, select: "-password" }
+    );
+    if (!user) return res.status(404).json({ error: "User not found" });
+    res.json(user);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
