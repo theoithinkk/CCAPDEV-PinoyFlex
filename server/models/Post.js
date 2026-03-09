@@ -1,5 +1,6 @@
 const mongoose = require("mongoose");
 
+
 const PostSchema = new mongoose.Schema(
   {
     id:           { type: String, unique: true },   
@@ -10,7 +11,7 @@ const PostSchema = new mongoose.Schema(
     authorId:     { type: String },
     votes:        { type: Number, default: 0 },
     voteByUser:   { type: Map, of: Number, default: {} },
-    images:       { type: [String], default: [] },
+    images:       { type: [String], default: [] }, // 
     commentCount: { type: Number, default: 0 },
     lastEdited:   { type: Number, default: null },
     createdAt:    { type: Number, default: () => Date.now() },
