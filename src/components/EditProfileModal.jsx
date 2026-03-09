@@ -1,18 +1,29 @@
 import { useState } from "react";
 import blankAvatar from "../assets/avatars/blank.png";
 
-export default function EditProfileModal({ user, onClose, onSuccess, onSave }) {
+export default function EditProfileModal({ user, onClose, onSuccess, onSave, onUploadAvatar }) {
   const [avatar, setAvatar] = useState(user.avatar || blankAvatar);
   const [bio, setBio] = useState(user.bio || "");
+  const [avatarFile, setAvatarFile] = useState(null);
+  const [avatarUploading, setAvatarUploading] = useState(false);
   const [error, setError] = useState("");
 
   async function save() {
     setError("");
-    const updates = { 
-      avatar: avatar.trim() === "" ? blankAvatar : avatar, 
-      bio 
-    };
     try {
+      let nextAvatar = avatar;
+      if (avatarFile && onUploadAvatar) {
+        setAvatarUploading(true);
+        const uploaded = await onUploadAvatar(avatarFile);
+        nextAvatar = uploaded?.avatar || nextAvatar;
+        setAvatar(nextAvatar);
+      }
+
+      const updates = { 
+        avatar: (nextAvatar || "").trim() === "" ? blankAvatar : nextAvatar,
+        bio 
+      };
+
       if (onSave) {
         const updatedUser = await onSave(updates);
         onSuccess(updatedUser || updates);
@@ -22,7 +33,17 @@ export default function EditProfileModal({ user, onClose, onSuccess, onSave }) {
       onClose();
     } catch (err) {
       setError(err?.message || "Failed to update profile.");
+    } finally {
+      setAvatarUploading(false);
     }
+  }
+
+  function handleFileChange(event) {
+    const file = event.target.files?.[0] || null;
+    setAvatarFile(file);
+    if (!file) return;
+    const objectUrl = URL.createObjectURL(file);
+    setAvatar(objectUrl);
   }
 
   return (
@@ -51,12 +72,23 @@ export default function EditProfileModal({ user, onClose, onSuccess, onSave }) {
           </div>
 
           <label className="field">
-            <span>Profile Picture URL</span>
+            <span>Upload Profile Picture</span>
+            <input
+              type="file"
+              accept="image/*"
+              onChange={handleFileChange}
+            />
+            <p className="detail-muted" style={{fontSize: '0.85rem', marginTop: '6px'}}>
+              Choose an image from your device (JPG, PNG, WEBP, GIF).
+            </p>
+          </label>
+
+          <label className="field">
+            <span>Or use Profile Picture URL</span>
             <input 
               value={avatar} 
               onChange={e => setAvatar(e.target.value)} 
               placeholder="https://example.com/my-photo.jpg"
-              autoFocus
             />
             <p className="detail-muted" style={{fontSize: '0.85rem', marginTop: '6px'}}>
               Paste any direct image link from the web.
@@ -76,7 +108,9 @@ export default function EditProfileModal({ user, onClose, onSuccess, onSave }) {
 
           {error && <div className="form-error">{error}</div>}
 
-          <button className="btn btn-primary" onClick={save}>Save Changes</button>
+          <button className="btn btn-primary" onClick={save} disabled={avatarUploading}>
+            {avatarUploading ? "Uploading..." : "Save Changes"}
+          </button>
         </div>
       </div>
     </div>

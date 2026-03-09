@@ -1,50 +1,30 @@
-# PinoyFlex - Phase 2 Backend
+# PinoyFlex Backend
 
-This repository now includes a Node.js + Express + MongoDB backend for the PinoyFlex forum features.
+PinoyFlex uses a Node.js + Express + MongoDB backend with session auth.
 
-## Tech Stack
+## Core Features
 
-- Node.js server (`Express`)
-- MongoDB database (`Mongoose` ODM)
-- Server-side views (`EJS`)
-- Session management (`express-session`)
-- Password hashing (`bcryptjs`)
+- Auth and profile management with role support (`user`, `admin`)
+- Posts, comments, voting, tags, workout logs
+- Follows/followers
+- Search API
+- Trending and explore feeds
+- Reports + moderation actions
+- Badge catalog + verification requests
+- Notifications
+- Basic API/auth rate limiting
 
-## Database Design
+## Canonical Backend
 
-Database models are inside the `model/` folder:
+Use the root backend only:
 
-- `model/User.js`
-- `model/Post.js`
-- `model/Comment.js`
+- Entry point: `server.js`
+- Models: `model/`
+- Routes: `routes/`
 
-The app auto-seeds at startup (if needed) with:
+There is an older duplicate backend under `server/`; treat it as legacy.
 
-- 5 sample users
-- 5 sample posts
-- 5 sample comments
-
-## Routes and Features
-
-Main navigation routes:
-
-- `GET /` - index page with links/stats
-- `GET /posts` - list all posts
-- `GET /posts/new` - create post form
-- `GET /posts/:id` - post detail + comments
-- `GET /users` - list users
-- `GET /users/me` - current user profile
-- `GET /auth/login` and `GET /auth/register`
-
-Form HTTP methods:
-
-- Login/Register use `POST`
-- Create post uses `POST`
-- Add comment uses `POST`
-- Vote actions use `POST`
-- Profile update uses `POST`
-
-## Local Setup
+## Setup
 
 1. Install dependencies:
 
@@ -52,45 +32,65 @@ Form HTTP methods:
 npm install
 ```
 
-2. Ensure MongoDB is running locally on the default URI:
+2. Make sure MongoDB is running:
 
 ```text
 mongodb://127.0.0.1:27017/pinoyflex
 ```
 
-You can override using environment variables:
-
-- `MONGODB_URI`
-- `PORT` (default: `3000`)
-- `SESSION_SECRET`
-
-3. Start the backend server:
+3. Start backend:
 
 ```bash
 npm run server
 ```
 
-4. Start the React frontend (optional but recommended for SPA development):
+Optional: seed sample data manually:
+
+```bash
+npm run seed
+```
+
+Force reset and reseed all collections:
+
+```bash
+npm run seed:force
+```
+
+4. Start frontend:
 
 ```bash
 npm run dev
 ```
 
-`vite.config.js` is configured to proxy `/api` requests to `http://localhost:3000`.
-
 5. Open:
 
 ```text
-Frontend (SPA): http://localhost:5173
-Backend (Node server): http://localhost:3000
+Frontend: http://localhost:5173
+Backend:  http://localhost:3000
 ```
 
-## Test Credentials (Seeded)
+## Seeded Accounts
 
-All seeded users use password: `1234`
+All seeded users use password `1234`.
 
-- `theo`
-- `marc`
-- `nathaniel`
-- `ian`
-- `arturo`
+- Admin: `theo`
+- Users: `marc`, `nathaniel`, `ian`, `arturo`
+
+## Main API Additions
+
+- `GET /api/search?q=...`
+- `GET /api/feed/trending`
+- `GET /api/feed/explore`
+- `POST/DELETE /api/users/:username/follow`
+- `GET /api/users/:username/followers`
+- `GET /api/users/:username/following`
+- `POST /api/reports`
+- `GET /api/notifications`
+- `PATCH /api/notifications/:id/read`
+- `POST /api/notifications/read-all`
+- `GET /api/badges`
+- `POST /api/verifications/upload`
+- `POST /api/verifications`
+- `GET /api/verifications/me`
+- `GET/PATCH /api/admin/reports*`
+- `GET/PATCH /api/admin/verifications*`

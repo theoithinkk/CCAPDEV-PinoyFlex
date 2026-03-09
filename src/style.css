@@ -12,6 +12,11 @@
 
   --card-bg: #fff;
   --page-bg: #f4eeee;
+  --panel-bg: #fff;
+  --text-main: #1f1f1f;
+  --text-secondary: #666;
+  --surface-muted: #f9f7f7;
+  --surface-hover: #f1e7e7;
 
   --font-title: system-ui, sans-serif;
   --font-body: system-ui, sans-serif;
@@ -25,6 +30,7 @@
 body {
   margin: 0;
   background: var(--page-bg);
+  color: var(--text-main);
 }
 
 .app {
@@ -101,7 +107,7 @@ body {
    3. NAVIGATION
 ========================= */
 .navstrip {
-  background: #fff;
+  background: var(--panel-bg);
   border-bottom: 1px solid var(--border-subtle);
 }
 
@@ -122,7 +128,7 @@ body {
 
 .navlink {
   text-decoration: none;
-  color: #444;
+  color: var(--text-main);
   padding: 6px 12px;
   font-size: 14px;
   border-radius: 8px;
@@ -159,6 +165,8 @@ body {
   border-radius: 20px;
   border: 1px solid var(--border-subtle);
   padding: 0 14px;
+  background: var(--card-bg);
+  color: var(--text-main);
 }
 
 .navactions {
@@ -171,10 +179,10 @@ body {
 .session-pill {
   padding: 8px 10px;
   border-radius: 999px;
-  background: rgba(0, 0, 0, 0.08);
+  background: var(--surface-muted);
   font-weight: 600;
   text-decoration: none;
-  color: #333;
+  color: var(--text-main);
   font-size: 14px;
 }
 
@@ -212,7 +220,7 @@ body {
   font-weight: 700;
   letter-spacing: 0.5px;
   text-transform: uppercase;
-  color: #666;
+  color: var(--text-secondary);
 }
 
 .search-item {
@@ -222,14 +230,14 @@ body {
   width: 100%;
   padding: 8px 10px;
   border: none;
-  background: #f9f7f7;
+  background: var(--surface-muted);
   border-radius: 10px;
   text-align: left;
   cursor: pointer;
   transition: background 0.15s ease, transform 0.12s ease;
 }
 
-.search-item:hover { background: #f1e7e7; }
+.search-item:hover { background: var(--surface-hover); }
 .search-item:active { transform: scale(0.98); }
 
 .search-item-icon {
@@ -245,8 +253,139 @@ body {
   font-size: 12px;
 }
 
-.search-item-text { font-size: 14px; color: #333; }
-.search-empty { font-size: 13px; color: #888; padding: 6px 4px; }
+.search-item-text { font-size: 14px; color: var(--text-main); }
+.search-empty { font-size: 13px; color: var(--text-secondary); padding: 6px 4px; }
+
+.notif-wrap {
+  position: relative;
+}
+
+.notif-trigger {
+  position: relative;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  border-radius: 0;
+  width: auto;
+  height: auto;
+  padding: 0;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.notif-trigger:hover {
+  background: transparent;
+}
+
+.notif-count {
+  min-width: 18px;
+  height: 18px;
+  padding: 0 4px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  color: #fff;
+  border-radius: 999px;
+  background: var(--red-main);
+  position: absolute;
+  top: -7px;
+  right: -10px;
+}
+
+.notif-icon-img {
+  width: 24px;
+  height: 24px;
+  display: block;
+}
+
+.notif-panel {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: min(380px, 90vw);
+  max-height: 420px;
+  overflow: hidden;
+  background: var(--card-bg);
+  border: 1px solid var(--border-subtle);
+  border-radius: 14px;
+  box-shadow: 0 16px 30px rgba(0, 0, 0, 0.16);
+  display: none;
+  z-index: 20;
+}
+
+.notif-panel.show {
+  display: block;
+}
+
+.notif-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 12px 10px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.notif-head h3 {
+  margin: 0;
+  font-size: 15px;
+}
+
+.notif-close {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.notif-list {
+  max-height: 360px;
+  overflow-y: auto;
+}
+
+.notif-item {
+  display: block;
+  text-decoration: none;
+  color: inherit;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.notif-item:hover {
+  background: var(--surface-hover);
+}
+
+.notif-item.is-unread {
+  background: var(--red-soft);
+}
+
+.notif-item-title {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 2px;
+}
+
+.notif-item-body {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.notif-item-time {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.notif-empty {
+  padding: 14px 12px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
 
 /* =========================
    4. BUTTONS
@@ -1640,6 +1779,66 @@ body {
 .profile-item-body { color: #444; margin-bottom: 6px; }
 .profile-item-meta { font-size: 12px; color: #777; }
 
+.profile-tabs {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  overflow-x: auto;
+  padding: 2px 0 8px;
+  margin: 4px 0 18px;
+  scrollbar-width: thin;
+}
+
+.profile-tab {
+  border: 0;
+  background: transparent;
+  color: #2f2f2f;
+  border-radius: 999px;
+  padding: 10px 16px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.profile-tab:hover {
+  background: rgba(198, 40, 40, 0.08);
+  color: #8e0000;
+}
+
+.profile-tab.is-active {
+  background: #d7dfe5;
+  color: #18222d;
+}
+
+.profile-history-bottom {
+  margin-top: 10px;
+  margin-bottom: 0;
+  padding: 16px;
+  border-radius: 14px;
+  border: 1px solid rgba(198, 40, 40, 0.2);
+  background: linear-gradient(180deg, rgba(255, 243, 243, 0.95) 0%, rgba(255, 236, 236, 0.95) 100%);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.profile-history-cta {
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1px;
+  box-shadow: 0 10px 18px rgba(142, 0, 0, 0.22);
+}
+
+.profile-history-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 20px rgba(142, 0, 0, 0.28);
+}
+
 /* Settings Toggles */
 .setting-row {
   display: flex;
@@ -2503,6 +2702,10 @@ body {
 @media (max-width: 700px) {
   .profile-edit-card { padding: 28px 24px; }
   .profile-avatar-row { flex-direction: column; align-items: flex-start; }
+  .profile-history-bottom {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 
 @media (max-width: 600px) {

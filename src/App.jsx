@@ -7,6 +7,7 @@ import Explore from "./components/Explore";
 import Trending from "./components/Trending";
 import logoLight from "./assets/logo/lightmode.png";
 import logoDark from "./assets/logo/darkmode.png";
+import notifInactiveLight from "./assets/webelements/notifInactiveLight.svg";
 import EditPostModal from "./components/EditPostModal";
 import EditProfileModal from "./components/EditProfileModal";
 import {
@@ -14,10 +15,19 @@ import {
   createPost,
   editComment,
   editPost,
+  followUser,
+  getFollowers,
+  getFollowing,
+  getNotifications,
   getPostComments,
   getPosts,
-  getWorkoutLogs,
   getUserProfile,
+  markAllNotificationsRead,
+  searchAll,
+  submitReport as submitUserReport,
+  unfollowUser,
+  getWorkoutLogs,
+  uploadMyAvatar,
   removeComment,
   removePost,
   upsertWorkoutLog,
@@ -78,6 +88,12 @@ function getTagStyle(tag) {
   return tagColorCache.get(tag);
 }
 
+function getCurrentUserVote(post, session) {
+  if (!post || !session) return 0;
+  const byUser = post.voteByUser || {};
+  return byUser[session.id] ?? byUser[session.username] ?? 0;
+}
+
 
 export default function App() {
   /* ===== App boot ===== */
@@ -106,6 +122,7 @@ export default function App() {
   const [viewingUser, setViewingUser] = useState(null); // For #/user/:username
   const [profilePosts, setProfilePosts] = useState([]);
   const [profileComments, setProfileComments] = useState([]);
+  const [profileHistory, setProfileHistory] = useState([]);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportTarget, setReportTarget] = useState(null);
 
@@ -131,10 +148,15 @@ export default function App() {
   const [logError, setLogError] = useState("");
   const [workoutLogs, setWorkoutLogs] = useState({});
 
-  /* ===== Search UI (static suggestions) ===== */
+  /* ===== Search UI ===== */
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const searchWrapRef = useRef(null);
+  const notifWrapRef = useRef(null);
+  const [searchSuggest, setSearchSuggest] = useState({ posts: [], users: [], tags: [] });
+  const [searchLoading, setSearchLoading] = useState(false);
+  const [searchResults, setSearchResults] = useState({ posts: [], users: [], tags: [] });
+  const [searchResultsLoading, setSearchResultsLoading] = useState(false);
   const recentSearches = useMemo(
     () => ["Body recomposition", "Meal prep on a budget", "5x5 program", "Calisthenics PH"],
     []
@@ -152,6 +174,14 @@ export default function App() {
     ? trendingTopics.filter((item) => item.toLowerCase().includes(normalizedQuery))
     : trendingTopics;
 
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationsData, setNotificationsData] = useState([]);
+  const [unreadNotifications, setUnreadNotifications] = useState(0);
+  const [followListOpen, setFollowListOpen] = useState(false);
+  const [followListTitle, setFollowListTitle] = useState("");
+  const [followListUsers, setFollowListUsers] = useState([]);
+  const [followBusy, setFollowBusy] = useState(false);
+
   useEffect(() => {
     if (!searchOpen) return;
     function handleDocClick(event) {
@@ -163,6 +193,49 @@ export default function App() {
     document.addEventListener("mousedown", handleDocClick);
     return () => document.removeEventListener("mousedown", handleDocClick);
   }, [searchOpen]);
+
+  useEffect(() => {
+    if (!notificationsOpen) return;
+    function handleDocClick(event) {
+      if (!notifWrapRef.current) return;
+      if (!notifWrapRef.current.contains(event.target)) {
+        setNotificationsOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleDocClick);
+    return () => document.removeEventListener("mousedown", handleDocClick);
+  }, [notificationsOpen]);
+
+  useEffect(() => {
+    if (!searchOpen || !searchValue.trim()) {
+      setSearchSuggest({ posts: [], users: [], tags: [] });
+      return;
+    }
+
+    let mounted = true;
+    const timer = setTimeout(async () => {
+      try {
+        setSearchLoading(true);
+        const data = await searchAll(searchValue.trim());
+        if (!mounted) return;
+        setSearchSuggest({
+          posts: (data.posts || []).slice(0, 5),
+          users: (data.users || []).slice(0, 5),
+          tags: (data.tags || []).slice(0, 5),
+        });
+      } catch {
+        if (!mounted) return;
+        setSearchSuggest({ posts: [], users: [], tags: [] });
+      } finally {
+        if (mounted) setSearchLoading(false);
+      }
+    }, 220);
+
+    return () => {
+      mounted = false;
+      clearTimeout(timer);
+    };
+  }, [searchOpen, searchValue]);
 
   /* ===== Routing + posts ===== */
   const [posts, setPosts] = useState([]);
@@ -187,6 +260,40 @@ export default function App() {
   const userProfileTarget = route.startsWith("#/user/") 
     ? route.split("/user/")[1] 
     : null;
+
+  useEffect(() => {
+    if (!route.startsWith("#/search")) {
+      setSearchResults({ posts: [], users: [], tags: [] });
+      return;
+    }
+    if (!searchQuery.trim()) {
+      setSearchResults({ posts: [], users: [], tags: [] });
+      return;
+    }
+
+    let mounted = true;
+    setSearchResultsLoading(true);
+    searchAll(searchQuery.trim())
+      .then((data) => {
+        if (!mounted) return;
+        setSearchResults({
+          posts: data.posts || [],
+          users: data.users || [],
+          tags: data.tags || [],
+        });
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setSearchResults({ posts: [], users: [], tags: [] });
+      })
+      .finally(() => {
+        if (mounted) setSearchResultsLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [route, searchQuery]);
 
   // -- Data Loading --
   useEffect(() => {
@@ -221,6 +328,7 @@ export default function App() {
       setViewingUser(null);
       setProfilePosts([]);
       setProfileComments([]);
+      setProfileHistory([]);
       return undefined;
     }
 
@@ -230,12 +338,14 @@ export default function App() {
         setViewingUser(data.user || null);
         setProfilePosts(data.posts || []);
         setProfileComments(data.comments || []);
+        setProfileHistory(data.history || []);
       })
       .catch(() => {
         if (!mounted) return;
         setViewingUser(null);
         setProfilePosts([]);
         setProfileComments([]);
+        setProfileHistory([]);
       });
 
     return () => {
@@ -258,6 +368,41 @@ export default function App() {
       });
     return () => {
       mounted = false;
+    };
+  }, [isLoggedIn, session?.id]);
+
+  useEffect(() => {
+    if (!isLoggedIn && route === "#/history") {
+      window.location.hash = "#/";
+    }
+  }, [isLoggedIn, route]);
+
+  useEffect(() => {
+    if (!isLoggedIn) {
+      setNotificationsData([]);
+      setUnreadNotifications(0);
+      return;
+    }
+
+    let mounted = true;
+    async function loadNotifications() {
+      try {
+        const data = await getNotifications(1, 20);
+        if (!mounted) return;
+        setNotificationsData(data.notifications || []);
+        setUnreadNotifications(data.unreadCount || 0);
+      } catch {
+        if (!mounted) return;
+        setNotificationsData([]);
+        setUnreadNotifications(0);
+      }
+    }
+
+    loadNotifications();
+    const interval = setInterval(loadNotifications, 30000);
+    return () => {
+      mounted = false;
+      clearInterval(interval);
     };
   }, [isLoggedIn, session?.id]);
 
@@ -365,10 +510,77 @@ export default function App() {
     setReportOpen(true);
   }
 
-  function submitReport() {
-    setReportOpen(false);
-    setReportTarget(null);
-    setToast("Report submitted.");
+  async function submitReport(payload) {
+    const target = payload?.target || reportTarget;
+    const reason = payload?.reason || "";
+    if (!target?.id || !target?.type) {
+      setToast("Unable to submit report.");
+      return;
+    }
+    try {
+      await submitUserReport({
+        targetType: target.type,
+        targetId: target.id,
+        reason,
+      });
+      setToast("Report submitted.");
+    } catch (err) {
+      setToast(err?.message || "Failed to submit report.");
+    } finally {
+      setReportOpen(false);
+      setReportTarget(null);
+    }
+  }
+
+  async function handleFollowToggle(targetUsername, isFollowing) {
+    if (!isLoggedIn) {
+      setToast("You need to log in first.");
+      openLogin();
+      return;
+    }
+    if (!targetUsername || followBusy) return;
+    try {
+      setFollowBusy(true);
+      if (isFollowing) {
+        await unfollowUser(targetUsername);
+      } else {
+        await followUser(targetUsername);
+      }
+      const data = await getUserProfile(targetUsername);
+      setViewingUser(data.user || null);
+      setProfilePosts(data.posts || []);
+      setProfileComments(data.comments || []);
+      setProfileHistory(data.history || []);
+    } catch (err) {
+      setToast(err?.message || "Failed to update follow state.");
+    } finally {
+      setFollowBusy(false);
+    }
+  }
+
+  async function openFollowList(kind, username) {
+    if (!username) return;
+    try {
+      const data = kind === "followers" ? await getFollowers(username, 1, 100) : await getFollowing(username, 1, 100);
+      setFollowListTitle(kind === "followers" ? `Followers of @${username}` : `Following @${username}`);
+      setFollowListUsers(data.users || []);
+      setFollowListOpen(true);
+    } catch (err) {
+      setToast(err?.message || "Failed to load users.");
+    }
+  }
+
+  async function openNotifications() {
+    setNotificationsOpen((v) => !v);
+    if (unreadNotifications > 0) {
+      try {
+        await markAllNotificationsRead();
+        setUnreadNotifications(0);
+        setNotificationsData((prev) => prev.map((n) => ({ ...n, readAt: n.readAt || Date.now() })));
+      } catch {
+        // noop
+      }
+    }
   }
 
   const recentLogEntries = useMemo(
@@ -379,12 +591,14 @@ export default function App() {
     [workoutLogs]
   );
 
+  const notifIconSrc = notifInactiveLight;
+
   /* Lock background scroll when any modal is open */
   useEffect(() => {
-    const anyOpen = authOpen || createOpen || editPostData || isEditingProfile || reportOpen;
+    const anyOpen = authOpen || createOpen || editPostData || isEditingProfile || reportOpen || followListOpen;
     document.body.style.overflow = anyOpen ? "hidden" : "";
     return () => (document.body.style.overflow = "");
-  }, [authOpen, createOpen, editPostData, isEditingProfile, reportOpen]);
+  }, [authOpen, createOpen, editPostData, isEditingProfile, reportOpen, followListOpen]);
 
 /* ===== Render ===== */
   return (
@@ -462,6 +676,45 @@ export default function App() {
                 role="listbox"
                 aria-label="Search suggestions"
               >
+                {searchLoading && <div className="search-empty">Searching...</div>}
+                {searchValue.trim() && !searchLoading && searchSuggest.users.length > 0 && (
+                  <div className="search-section">
+                    <div className="search-section-title">Users</div>
+                    {searchSuggest.users.map((u) => (
+                      <button
+                        key={u.id}
+                        className="search-item"
+                        type="button"
+                        onClick={() => {
+                          setSearchOpen(false);
+                          window.location.hash = `#/user/${encodeURIComponent(u.username)}`;
+                        }}
+                      >
+                        <span className="search-item-icon">@</span>
+                        <span className="search-item-text">{u.username}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {searchValue.trim() && !searchLoading && searchSuggest.tags.length > 0 && (
+                  <div className="search-section">
+                    <div className="search-section-title">Tags</div>
+                    {searchSuggest.tags.map((tag) => (
+                      <button
+                        key={tag}
+                        className="search-item"
+                        type="button"
+                        onClick={() => {
+                          setSearchOpen(false);
+                          window.location.hash = `#/search?q=${encodeURIComponent(tag)}`;
+                        }}
+                      >
+                        <span className="search-item-icon">#</span>
+                        <span className="search-item-text">{tag}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
                 <div className="search-section">
                   <div className="search-section-title">Trending topics</div>
                   {filteredTrending.length === 0 ? (
@@ -523,6 +776,43 @@ export default function App() {
               </>
             ) : (
               <>
+                <div className="notif-wrap" ref={notifWrapRef}>
+                  <button className="notif-trigger" type="button" onClick={openNotifications} aria-label="Notifications">
+                    <img className="notif-icon-img" src={notifIconSrc} alt="" aria-hidden="true" />
+                    {unreadNotifications > 0 && (
+                      <span className="notif-count">{unreadNotifications > 9 ? "9+" : unreadNotifications}</span>
+                    )}
+                  </button>
+                  <div className={"notif-panel" + (notificationsOpen ? " show" : "")}>
+                    <div className="notif-head">
+                      <h3>Notifications</h3>
+                      <button className="notif-close" type="button" onClick={() => setNotificationsOpen(false)}>
+                        Close
+                      </button>
+                    </div>
+                    {notificationsData.length === 0 ? (
+                      <div className="notif-empty">No notifications yet.</div>
+                    ) : (
+                      <div className="notif-list">
+                        {notificationsData.map((n) => (
+                          <a
+                            key={n.id}
+                            className={"notif-item" + (n.readAt ? "" : " is-unread")}
+                            href={n.refType === "post" && n.refId ? `#/post/${n.refId}` : "#/"}
+                            onClick={(e) => {
+                              if (!(n.refType === "post" && n.refId)) e.preventDefault();
+                              setNotificationsOpen(false);
+                            }}
+                          >
+                            <div className="notif-item-title">{n.title}</div>
+                            <div className="notif-item-body">{n.body}</div>
+                            <div className="notif-item-time">{timeAgo(n.createdAt)}</div>
+                          </a>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
                 <a className="session-pill" href="#/profile">
                   @{session.username}
                 </a>
@@ -684,48 +974,107 @@ export default function App() {
                 // === SEARCH RESULTS ===
                 <div className="feed-header">
                     <h2>Search Results: "{searchQuery}"</h2>
-                    {posts.filter(p => 
-                        p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                        p.body.toLowerCase().includes(searchQuery.toLowerCase())
-                    ).length === 0 ? (
-                        <p className="detail-muted">No matches found.</p>
+                    {searchResultsLoading ? (
+                      <p className="detail-muted">Searching...</p>
                     ) : (
-                        posts.filter(p => 
-                            p.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-                            p.body.toLowerCase().includes(searchQuery.toLowerCase())
-                        ).map(p => (
+                      <>
+                        {searchResults.users.length > 0 && (
+                          <div className="block" style={{ marginBottom: "1rem" }}>
+                            <h3>Users</h3>
+                            <div className="profile-list">
+                              {searchResults.users.map((u) => (
+                                <a key={u.id} className="profile-item" href={`#/user/${u.username}`}>
+                                  <div className="profile-item-title">@{u.username}</div>
+                                  <div className="profile-item-body">{u.bio || "No bio yet."}</div>
+                                </a>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                        {searchResults.posts.length > 0 && (
+                          searchResults.posts.map((p) => (
                             <PostCard
-                                key={p.id}
-                                {...p}
-                                userVote={p.voteByUser?.[session?.username] || 0}
-                                onVote={handleVote}
-                                onReport={(target) => openReportModal(target)}
+                              key={p.id}
+                              {...p}
+                              userVote={getCurrentUserVote(p, session)}
+                              onVote={handleVote}
+                              onReport={(target) => openReportModal(target)}
                             />
-                        ))
+                          ))
+                        )}
+                        {searchResults.users.length === 0 && searchResults.posts.length === 0 && (
+                          <p className="detail-muted">No matches found.</p>
+                        )}
+                      </>
                     )}
+                </div>
+              ) : route === "#/history" ? (
+                <div className="feed-header">
+                  <h2>Your Interaction History</h2>
+                  {!isLoggedIn ? (
+                    <p className="detail-muted">Redirecting to home...</p>
+                  ) : profileHistory.length === 0 ? (
+                    <p className="detail-muted">No interactions yet.</p>
+                  ) : (
+                    <div className="profile-list">
+                      {profileHistory.map((item) => (
+                        <a key={`${item.type}-${item.postId}`} className="profile-item" href={`#/post/${item.postId}`}>
+                          <div className="profile-item-title">{item.title}</div>
+                          <div className="profile-item-body">
+                            {item.type === "voted" ? "You voted on this post" : "You commented on this post"}
+                          </div>
+                          <div className="profile-item-meta">{timeAgo(item.createdAt)}</div>
+                        </a>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ) : route.startsWith("#/user/") ? (
                 // === VIEW USER PROFILE ===
                 <Profile 
                     user={viewingUser} 
                     isCurrentUser={session?.username === viewingUser?.username}
+                    isLoggedIn={isLoggedIn}
                     onEdit={() => setIsEditingProfile(true)}
+                    onToggleFollow={handleFollowToggle}
+                    onOpenFollowers={(username) => openFollowList("followers", username)}
+                    onOpenFollowing={(username) => openFollowList("following", username)}
+                    followBusy={followBusy}
                     userPosts={profilePosts}
                     userComments={profileComments}
+                    userHistory={profileHistory}
                 />
               ) : route === "#/profile" ? (
                 // === MY PROFILE ===
                 <Profile 
                     user={viewingUser || session} 
                     isCurrentUser={true}
+                    isLoggedIn={isLoggedIn}
                     onEdit={() => setIsEditingProfile(true)}
+                    onToggleFollow={handleFollowToggle}
+                    onOpenFollowers={(username) => openFollowList("followers", username)}
+                    onOpenFollowing={(username) => openFollowList("following", username)}
+                    followBusy={followBusy}
                     userPosts={profilePosts}
                     userComments={profileComments}
+                    userHistory={profileHistory}
                 />
               ) : route.startsWith("#/explore") ? (
-                <Explore posts={posts} />
+                <Explore
+                  posts={posts}
+                  isLoggedIn={isLoggedIn}
+                  session={session}
+                  onVote={handleVote}
+                  onRequireLogin={openLogin}
+                />
               ) : route === "#/trending" ? (
-                <Trending posts={posts} />
+                <Trending
+                  posts={posts}
+                  isLoggedIn={isLoggedIn}
+                  session={session}
+                  onVote={handleVote}
+                  onRequireLogin={openLogin}
+                />
               ) : activePostId ? (
               <PostDetail
                 post={activePost}
@@ -734,7 +1083,7 @@ export default function App() {
                 openLogin={openLogin}
                 onVotePost={handleVote}
                 onReportPost={(target) => openReportModal(target)}
-                currentUserVote={activePost?.voteByUser?.[session?.username] || 0}
+                currentUserVote={getCurrentUserVote(activePost, session)}
                 onEditPost={() => handleEditPost(activePost)}
                 onDeletePost={async (postId) => {
                   try {
@@ -795,7 +1144,7 @@ export default function App() {
                     createdAt={p.createdAt}
                     preview={(p.body || "").slice(0, 120) + ((p.body || "").length > 120 ? "…" : "")}
                     votes={p.votes || 0}
-                    userVote={p.voteByUser?.[session?.username] || 0}
+                    userVote={getCurrentUserVote(p, session)}
                     tag={p.tag}
                     commentCount={p.commentCount || 0}
                     images={p.images || []}
@@ -951,6 +1300,7 @@ export default function App() {
           user={viewingUser || session}
           onClose={() => setIsEditingProfile(false)}
           onSave={updateMyProfile}
+          onUploadAvatar={uploadMyAvatar}
           onSuccess={(updatedUser) => {
             updateSession({
               id: updatedUser.id || session?.id,
@@ -968,6 +1318,35 @@ export default function App() {
           onClose={() => setReportOpen(false)}
           onSubmit={submitReport}
         />
+      )}
+
+      {followListOpen && (
+        <div className="modal-backdrop" onMouseDown={() => setFollowListOpen(false)}>
+          <div className="modal" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <h2 className="modal-title">{followListTitle}</h2>
+              <button className="modal-x" type="button" onClick={() => setFollowListOpen(false)}>
+                X
+              </button>
+            </div>
+            {followListUsers.length === 0 ? (
+              <div className="detail-muted">No users yet.</div>
+            ) : (
+              <div className="profile-list">
+                {followListUsers.map((u) => (
+                  <a
+                    key={u.id}
+                    className="profile-item"
+                    href={`#/user/${u.username}`}
+                    onClick={() => setFollowListOpen(false)}
+                  >
+                    <div className="profile-item-title">@{u.username}</div>
+                  </a>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       )}
     </div>
   );

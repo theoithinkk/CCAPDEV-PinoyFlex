@@ -17,12 +17,34 @@ const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/pinoyflex";
 const SESSION_SECRET = process.env.SESSION_SECRET || "dev_secret_change_me";
+const isProduction = process.env.NODE_ENV === "production";
+
+const requestBuckets = new Map();
+function basicRateLimit({ windowMs, max, keyPrefix }) {
+  return (req, res, next) => {
+    const key = `${keyPrefix}:${req.ip || "unknown"}`;
+    const now = Date.now();
+    const bucket = requestBuckets.get(key) || { count: 0, startedAt: now };
+
+    if (now - bucket.startedAt > windowMs) {
+      bucket.count = 0;
+      bucket.startedAt = now;
+    }
+    bucket.count += 1;
+    requestBuckets.set(key, bucket);
+
+    if (bucket.count > max) {
+      return res.status(429).json({ error: "Too many requests. Please try again later." });
+    }
+    return next();
+  };
+}
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
-app.use(express.urlencoded({ extended: true }));
-app.use(express.json());
+app.use(express.urlencoded({ extended: true, limit: "1mb" }));
+app.use(express.json({ limit: "1mb" }));
 app.use(
   session({
     secret: SESSION_SECRET,
@@ -30,12 +52,17 @@ app.use(
     saveUninitialized: false,
     cookie: {
       httpOnly: true,
+      sameSite: "lax",
+      secure: isProduction,
       maxAge: 1000 * 60 * 60 * 24,
     },
   })
 );
 
 app.use(express.static(path.join(__dirname, "public")));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
+app.use("/api/auth", basicRateLimit({ windowMs: 60 * 1000, max: 30, keyPrefix: "auth" }));
+app.use("/api", basicRateLimit({ windowMs: 60 * 1000, max: 400, keyPrefix: "api" }));
 
 app.use((req, res, next) => {
   res.locals.currentUser = req.session.user || null;
@@ -75,8 +102,11 @@ app.use("/posts", postRoutes);
 app.use("/users", userRoutes);
 app.use("/api", apiRoutes);
 
-app.use((err, req, res, next) => {
+app.use((err, req, res, _next) => {
   console.error(err);
+  if (req.path.startsWith("/api")) {
+    return res.status(500).json({ error: "Internal server error." });
+  }
   res.status(500).render("error", {
     title: "Server Error",
     message: "An unexpected error occurred.",

@@ -120,6 +120,20 @@ export async function updateMyProfile(updates) {
   return data.user;
 }
 
+export async function uploadMyAvatar(file) {
+  const body = new FormData();
+  body.append("avatar", file);
+
+  const response = await fetch("/api/users/me/avatar", {
+    method: "POST",
+    credentials: "include",
+    body,
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.error || "Avatar upload failed");
+  return data.user;
+}
+
 export async function getTags() {
   const data = await request("/api/tags");
   return data.tags || [];
@@ -144,4 +158,90 @@ export async function upsertWorkoutLog(dateKey, text) {
     body: JSON.stringify({ text }),
   });
   return data.logs || {};
+}
+
+export async function searchAll(query) {
+  const data = await request(`/api/search?q=${encodeURIComponent(query || "")}`);
+  return data;
+}
+
+export async function getTrendingFeed({ limit = 10, windowDays = 7 } = {}) {
+  const data = await request(`/api/feed/trending?limit=${limit}&windowDays=${windowDays}`);
+  return data.items || [];
+}
+
+export async function getExploreFeed({ tag = "", page = 1, limit = 20 } = {}) {
+  const qs = new URLSearchParams();
+  if (tag) qs.set("tag", tag);
+  qs.set("page", String(page));
+  qs.set("limit", String(limit));
+  return request(`/api/feed/explore?${qs.toString()}`);
+}
+
+export async function followUser(username) {
+  return request(`/api/users/${encodeURIComponent(username)}/follow`, { method: "POST" });
+}
+
+export async function unfollowUser(username) {
+  return request(`/api/users/${encodeURIComponent(username)}/follow`, { method: "DELETE" });
+}
+
+export async function getFollowers(username, page = 1, limit = 20) {
+  return request(`/api/users/${encodeURIComponent(username)}/followers?page=${page}&limit=${limit}`);
+}
+
+export async function getFollowing(username, page = 1, limit = 20) {
+  return request(`/api/users/${encodeURIComponent(username)}/following?page=${page}&limit=${limit}`);
+}
+
+export async function submitReport(payload) {
+  return request("/api/reports", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getNotifications(page = 1, limit = 20) {
+  return request(`/api/notifications?page=${page}&limit=${limit}`);
+}
+
+export async function markNotificationRead(id) {
+  return request(`/api/notifications/${encodeURIComponent(id)}/read`, { method: "PATCH" });
+}
+
+export async function markAllNotificationsRead() {
+  return request("/api/notifications/read-all", { method: "POST" });
+}
+
+export async function getBadges() {
+  return request("/api/badges");
+}
+
+export async function getUserBadges(username) {
+  return request(`/api/users/${encodeURIComponent(username)}/badges`);
+}
+
+export async function createVerification(payload) {
+  return request("/api/verifications", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function getMyVerifications(page = 1, limit = 20) {
+  return request(`/api/verifications/me?page=${page}&limit=${limit}`);
+}
+
+export async function uploadVerificationProof(file) {
+  const body = new FormData();
+  body.append("proof", file);
+
+  const response = await fetch("/api/verifications/upload", {
+    method: "POST",
+    credentials: "include",
+    body,
+  });
+  const data = await response.json();
+  if (!response.ok) throw new Error(data?.error || "Upload failed");
+  return data.proofUrl;
 }
