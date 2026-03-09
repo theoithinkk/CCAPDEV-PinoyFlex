@@ -2,9 +2,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "./hooks/useAuth";
 import AuthModal from "./components/AuthModal";
 import CreatePostModal from "./components/CreatePostModal";
-import { addPost, deletePost, loadPosts, savePosts, seedPostsIfEmpty, voteOnPost } from "./lib/postsStorage";
-import { addComment, deleteComment, deleteCommentsForPost, loadComments, seedCommentsIfEmpty } from "./lib/commentsStorage";
-import { loadUserWorkoutLogs, upsertUserWorkoutLog } from "./lib/workoutLogStorage";
 import Profile from "./components/Profile";
 import Explore from "./components/Explore";
 import Trending from "./components/Trending";
@@ -12,9 +9,21 @@ import logoLight from "./assets/logo/lightmode.png";
 import logoDark from "./assets/logo/darkmode.png";
 import EditPostModal from "./components/EditPostModal";
 import EditProfileModal from "./components/EditProfileModal";
-import { updatePost } from "./lib/postsStorage";
-import { updateComment } from "./lib/commentsStorage";
-import { getUserByUsername } from "./lib/authStorage";
+import {
+  createComment,
+  createPost,
+  editComment,
+  editPost,
+  getPostComments,
+  getPosts,
+  getWorkoutLogs,
+  getUserProfile,
+  removeComment,
+  removePost,
+  upsertWorkoutLog,
+  updateMyProfile,
+  votePost,
+} from "./lib/api";
 
 const tagColorCache = new Map();
 const FEATURED_NEWS_ROUTE = "#/news/periodized-upper-lower-brief";
@@ -85,7 +94,7 @@ export default function App() {
   }
 
   /* ===== Auth state ===== */
-  const { session, isLoggedIn, login, logout } = useAuth();
+  const { session, isLoggedIn, login, register, logout, updateSession } = useAuth();
 
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState("login"); // login | signup
@@ -95,6 +104,8 @@ export default function App() {
   const [editPostData, setEditPostData] = useState(null);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [viewingUser, setViewingUser] = useState(null); // For #/user/:username
+  const [profilePosts, setProfilePosts] = useState([]);
+  const [profileComments, setProfileComments] = useState([]);
   const [reportOpen, setReportOpen] = useState(false);
   const [reportTarget, setReportTarget] = useState(null);
 
@@ -119,7 +130,6 @@ export default function App() {
   const [logText, setLogText] = useState("");
   const [logError, setLogError] = useState("");
   const [workoutLogs, setWorkoutLogs] = useState({});
-  const logUserKey = session?.id || session?.username || "guest";
 
   /* ===== Search UI (static suggestions) ===== */
   const [searchOpen, setSearchOpen] = useState(false);
@@ -182,40 +192,74 @@ export default function App() {
   useEffect(() => {
     const now = typeof performance !== "undefined" && performance.now ? () => performance.now() : () => Date.now();
     const start = now();
+    let mounted = true;
 
-    let loaded = [];
-    try {
-      seedPostsIfEmpty();
-      seedCommentsIfEmpty();
-      loaded = loadPosts();
-    } catch {
-      loaded = [];
-    }
-    setPosts(loaded);
+    getPosts()
+      .then((loaded) => {
+        if (mounted) setPosts(loaded);
+      })
+      .catch(() => {
+        if (mounted) setPosts([]);
+      });
 
     const minMs = 600;
     const elapsed = now() - start;
     const delay = Math.max(0, minMs - elapsed);
 
     const t = setTimeout(() => setAppReady(true), delay);
-    return () => clearTimeout(t);
+    return () => {
+      mounted = false;
+      clearTimeout(t);
+    };
   }, []);
 
   // -- Load User Profile Data --
   useEffect(() => {
-    if (userProfileTarget) {
-      const u = getUserByUsername(userProfileTarget);
-      setViewingUser(u);
+    let mounted = true;
+    const username = userProfileTarget || (route === "#/profile" ? session?.username : null);
+    if (!username) {
+      setViewingUser(null);
+      setProfilePosts([]);
+      setProfileComments([]);
+      return undefined;
     }
-  }, [userProfileTarget, posts]);
+
+    getUserProfile(username)
+      .then((data) => {
+        if (!mounted) return;
+        setViewingUser(data.user || null);
+        setProfilePosts(data.posts || []);
+        setProfileComments(data.comments || []);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setViewingUser(null);
+        setProfilePosts([]);
+        setProfileComments([]);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [userProfileTarget, route, session?.username]);
 
   useEffect(() => {
     if (!isLoggedIn) {
       setWorkoutLogs({});
       return;
     }
-    setWorkoutLogs(loadUserWorkoutLogs(logUserKey));
-  }, [isLoggedIn, logUserKey]);
+    let mounted = true;
+    getWorkoutLogs()
+      .then((logs) => {
+        if (mounted) setWorkoutLogs(logs);
+      })
+      .catch(() => {
+        if (mounted) setWorkoutLogs({});
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [isLoggedIn, session?.id]);
 
 
   /* ===== Create post modal ===== */
@@ -230,25 +274,19 @@ export default function App() {
     setCreateOpen(true);
   }
 
-  function handleCreate({ title, tag, body, images }) {
-    const now = Date.now();
-    const newPost = {
-      id: `p_${now}`,
-      title: title.trim(),
-      tag,
-      body: body.trim(),
-      author: session?.username || "user",
-      authorId: session?.id || null,
-      createdAt: now,
-      votes: 0,
-      voteByUser: {},
-      images,
-      commentCount: 0,
-    };
-
-    const next = addPost(newPost);
-    setPosts(next);
-    setCreateOpen(false);
+  async function handleCreate({ title, tag, body, images }) {
+    try {
+      const created = await createPost({
+        title: title.trim(),
+        tag,
+        body: body.trim(),
+        images: images || [],
+      });
+      setPosts((prev) => [created, ...prev]);
+      setCreateOpen(false);
+    } catch (err) {
+      setToast(err?.message || "Failed to create post.");
+    }
   }
 
   /* ===== Editing Handlers ===== */
@@ -256,31 +294,35 @@ export default function App() {
     setEditPostData(post);
   }
 
-  function saveEditedPost(postId, updates) {
-    const next = updatePost(postId, updates);
-    setPosts(next);
-    setEditPostData(null);
+  async function saveEditedPost(postId, updates) {
+    try {
+      const updated = await editPost(postId, updates);
+      setPosts((prev) => prev.map((post) => (post.id === postId ? updated : post)));
+      setEditPostData(null);
+    } catch (err) {
+      setToast(err?.message || "Failed to update post.");
+    }
   }
 
   function updatePostCommentCount(postId, count) {
-    setPosts((prev) => {
-      const next = prev.map((p) => (p.id === postId ? { ...p, commentCount: count } : p));
-      savePosts(next);
-      return next;
-    });
+    setPosts((prev) => prev.map((p) => (p.id === postId ? { ...p, commentCount: count } : p)));
   }
 
-  function handleVote(postId, direction) {
+  async function handleVote(postId, direction) {
     if (!isLoggedIn) {
       setToast("You need to log in before voting.");
       openLogin();
       return;
     }
-    const next = voteOnPost(postId, session?.username, direction);
-    setPosts(next);
+    try {
+      const updated = await votePost(postId, direction);
+      setPosts((prev) => prev.map((post) => (post.id === postId ? updated : post)));
+    } catch (err) {
+      setToast(err?.message || "Failed to vote.");
+    }
   }
 
-  function saveWorkoutLogEntry(dateKey, text) {
+  async function saveWorkoutLogEntry(dateKey, text) {
     if (!isLoggedIn) {
       setToast("You need to log in before saving a workout log.");
       openLogin();
@@ -290,12 +332,16 @@ export default function App() {
     const cleaned = (text || "").trim();
     if (!dateKey || cleaned.length < 1 || cleaned.length > 30) return false;
 
-    const next = upsertUserWorkoutLog(logUserKey, dateKey, cleaned);
-    setWorkoutLogs(next);
-    return true;
+    try {
+      const next = await upsertWorkoutLog(dateKey, cleaned);
+      setWorkoutLogs(next);
+      return true;
+    } catch {
+      return false;
+    }
   }
 
-  function handleQuickLogSave() {
+  async function handleQuickLogSave() {
     setLogError("");
     const cleaned = logText.trim();
 
@@ -308,7 +354,7 @@ export default function App() {
       return;
     }
 
-    const ok = saveWorkoutLogEntry(logDate, cleaned);
+    const ok = await saveWorkoutLogEntry(logDate, cleaned);
     if (!ok) return;
     setLogText("");
     setToast("Workout log saved.");
@@ -628,8 +674,8 @@ export default function App() {
                     setToast("You need to log in before saving a workout log.");
                     openLogin();
                   }}
-                  onSaveEntry={(dateKey, text) => {
-                    const ok = saveWorkoutLogEntry(dateKey, text);
+                  onSaveEntry={async (dateKey, text) => {
+                    const ok = await saveWorkoutLogEntry(dateKey, text);
                     if (ok) setToast("Workout log saved.");
                     return ok;
                   }}
@@ -664,18 +710,22 @@ export default function App() {
                     user={viewingUser} 
                     isCurrentUser={session?.username === viewingUser?.username}
                     onEdit={() => setIsEditingProfile(true)}
+                    userPosts={profilePosts}
+                    userComments={profileComments}
                 />
               ) : route === "#/profile" ? (
                 // === MY PROFILE ===
                 <Profile 
-                    user={session} 
+                    user={viewingUser || session} 
                     isCurrentUser={true}
                     onEdit={() => setIsEditingProfile(true)}
+                    userPosts={profilePosts}
+                    userComments={profileComments}
                 />
               ) : route.startsWith("#/explore") ? (
-                <Explore />
+                <Explore posts={posts} />
               ) : route === "#/trending" ? (
-                <Trending />
+                <Trending posts={posts} />
               ) : activePostId ? (
               <PostDetail
                 post={activePost}
@@ -686,10 +736,14 @@ export default function App() {
                 onReportPost={(target) => openReportModal(target)}
                 currentUserVote={activePost?.voteByUser?.[session?.username] || 0}
                 onEditPost={() => handleEditPost(activePost)}
-                onDeletePost={(postId) => {
-                  const next = deletePost(postId);
-                  setPosts(next);
-                  window.location.hash = "#/";
+                onDeletePost={async (postId) => {
+                  try {
+                    await removePost(postId);
+                    setPosts((prev) => prev.filter((post) => post.id !== postId));
+                    window.location.hash = "#/";
+                  } catch (err) {
+                    setToast(err?.message || "Failed to delete post.");
+                  }
                 }}
                 onUpdatePostCommentCount={updatePostCommentCount}
               />
@@ -737,6 +791,7 @@ export default function App() {
                     id={p.id}
                     title={p.title}
                     author={p.author}
+                    authorAvatar={p.authorAvatar}
                     createdAt={p.createdAt}
                     preview={(p.body || "").slice(0, 120) + ((p.body || "").length > 120 ? "…" : "")}
                     votes={p.votes || 0}
@@ -859,9 +914,19 @@ export default function App() {
           mode={authMode}
           onClose={() => setAuthOpen(false)}
           onSwitchMode={setAuthMode}
-          onSuccess={(username) => {
-            login(username);
+          onSuccess={async ({ mode, username, password }) => {
+            if (mode === "login") {
+              await login(username, password);
+            } else {
+              await register(username, password);
+            }
             setAuthOpen(false);
+            try {
+              const refreshedPosts = await getPosts();
+              setPosts(refreshedPosts);
+            } catch {
+              // keep existing feed if refresh fails
+            }
           }}
         />
       )}
@@ -883,10 +948,16 @@ export default function App() {
 
       {isEditingProfile && session && (
         <EditProfileModal
-          user={session}
+          user={viewingUser || session}
           onClose={() => setIsEditingProfile(false)}
-          onSuccess={(updates) => {
-             window.location.reload(); 
+          onSave={updateMyProfile}
+          onSuccess={(updatedUser) => {
+            updateSession({
+              id: updatedUser.id || session?.id,
+              username: updatedUser.username || session?.username,
+              avatar: updatedUser.avatar || session?.avatar,
+            });
+            setViewingUser(updatedUser);
           }}
         />
       )}
@@ -1007,7 +1078,7 @@ function WorkoutLogCalendar({ logs, isLoggedIn, onRequireLogin, onSaveEntry }) {
   const monthLabel = monthStart.toLocaleDateString("en-US", { month: "long", year: "numeric" });
   const todayKey = formatDateKey(Date.now());
 
-  function handleSave() {
+  async function handleSave() {
     setError("");
     const cleaned = draft.trim();
 
@@ -1024,7 +1095,7 @@ function WorkoutLogCalendar({ logs, isLoggedIn, onRequireLogin, onSaveEntry }) {
       return;
     }
 
-    const ok = onSaveEntry?.(selectedDate, cleaned);
+    const ok = await onSaveEntry?.(selectedDate, cleaned);
     if (!ok) {
       setError("Unable to save this entry.");
     }
@@ -1133,6 +1204,7 @@ function PostCard({
   commentCount = 0,
   preview = "",
   author = "",
+  authorAvatar = "/avatars/default.png",
   createdAt = 0,
   images = [],
   onVote,
@@ -1140,7 +1212,6 @@ function PostCard({
 }) {
   const timeText = createdAt ? timeAgo(createdAt) : meta;
   const postHref = `#/post/${id}`;
-  const authorAvatar = getUserByUsername(author)?.avatar || "/avatars/default.png";
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuDir, setMenuDir] = useState("up");
   const menuRef = useRef(null);
@@ -1367,8 +1438,17 @@ function PostDetail({
 
   useEffect(() => {
     if (!post) return;
-    const loaded = loadComments(post.id);
-    setComments(loaded);
+    let mounted = true;
+    getPostComments(post.id)
+      .then((loaded) => {
+        if (mounted) setComments(loaded);
+      })
+      .catch(() => {
+        if (mounted) setComments([]);
+      });
+    return () => {
+      mounted = false;
+    };
   }, [post?.id]);
 
   if (!post) {
@@ -1383,7 +1463,7 @@ function PostDetail({
     );
   }
 
-  function submitComment(e) {
+  async function submitComment(e) {
     e.preventDefault();
     if (!isLoggedIn) {
       openLogin();
@@ -1391,25 +1471,27 @@ function PostDetail({
     }
     const body = text.trim();
     if (body.length < 2) return;
-
-    const now = Date.now();
-    const newComment = {
-      id: `c_${now}`,
-      postId: post.id,
-      author: session.username,
-      body,
-      createdAt: now,
-    };
-    const next = addComment(post.id, newComment);
-    setComments(next);
-    setText("");
-    onUpdatePostCommentCount(post.id, next.length);
+    try {
+      const created = await createComment(post.id, body);
+      setComments((prev) => {
+        const next = [...prev, created];
+        onUpdatePostCommentCount(post.id, next.length);
+        return next;
+      });
+      setText("");
+    } catch {
+      // noop
+    }
   }
   
-  function saveCommentEdit(cId) {
-      const next = updateComment(post.id, cId, editBody);
-      setComments(next);
-      setEditingCommentId(null);
+  async function saveCommentEdit(cId) {
+      try {
+        const updated = await editComment(post.id, cId, editBody);
+        setComments((prev) => prev.map((comment) => (comment.id === cId ? updated : comment)));
+        setEditingCommentId(null);
+      } catch {
+        // noop
+      }
   }
 
   const images = post?.images || [];
@@ -1424,20 +1506,26 @@ function PostDetail({
     setConfirmOpen(true);
   }
 
-  function confirmDeletePost() {
+  async function confirmDeletePost() {
     if (!isLoggedIn || !isOwner) return;
-    deleteCommentsForPost(post.id);
-    onDeletePost(post.id);
+    await onDeletePost(post.id);
     setConfirmOpen(false);
   }
 
-  function handleDeleteComment(commentId, commentAuthor) {
+  async function handleDeleteComment(commentId, commentAuthor) {
     if (!isLoggedIn) { openLogin(); return; }
     const canDelete = isOwner || session?.username === commentAuthor;
     if (!canDelete) return;
-    const next = deleteComment(post.id, commentId);
-    setComments(next);
-    onUpdatePostCommentCount(post.id, next.length);
+    try {
+      await removeComment(post.id, commentId);
+      setComments((prev) => {
+        const next = prev.filter((comment) => comment.id !== commentId);
+        onUpdatePostCommentCount(post.id, next.length);
+        return next;
+      });
+    } catch {
+      // noop
+    }
   }
 
   function detailPrev(e) {

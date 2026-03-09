@@ -1,37 +1,43 @@
 import { useEffect, useState } from "react";
-import {
-  clearSession,
-  loadSession,
-  loadUsers,
-  saveSession,
-  seedUsersIfEmpty
-} from "../lib/authStorage";
+import { getSession, loginUser, logoutUser, registerUser } from "../lib/api";
 
 export function useAuth() {
   const [session, setSession] = useState(null);
 
   useEffect(() => {
-    seedUsersIfEmpty();
-    setSession(loadSession());
+    let mounted = true;
+    getSession()
+      .then((user) => {
+        if (mounted) setSession(user);
+      })
+      .catch(() => {
+        if (mounted) setSession(null);
+      });
+    return () => {
+      mounted = false;
+    };
   }, []);
 
   const isLoggedIn = !!session?.username;
 
-  function login(username) {
-    const users = loadUsers();
-    const user = users.find((u) => u.username === username);
-    const next = { id: user?.id || null, username, avatar: user?.avatar };
-    saveSession(next);
+  async function login(username, password) {
+    const next = await loginUser(username, password);
     setSession(next);
+    return next;
   }
 
-  function logout() {
-    clearSession();
+  async function register(username, password) {
+    const next = await registerUser(username, password);
+    setSession(next);
+    return next;
+  }
+
+  async function logout() {
+    await logoutUser();
     setSession(null);
   }
 
   function updateSession(nextSession) {
-    saveSession(nextSession);
     setSession(nextSession);
   }
 
@@ -39,7 +45,8 @@ export function useAuth() {
     session,
     isLoggedIn,
     login,
+    register,
     logout,
-    updateSession 
+    updateSession,
   };
 }

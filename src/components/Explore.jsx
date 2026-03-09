@@ -1,6 +1,4 @@
 import { useState, useEffect, useMemo } from "react";
-import { loadPosts } from "../lib/postsStorage";
-import { loadComments } from "../lib/commentsStorage";
 
 // 1. CONFIGURATION
 const CATEGORIES = [
@@ -38,7 +36,7 @@ const PLACEHOLDER_POSTS = {
   ]
 }; 
 
-export default function Explore() {
+export default function Explore({ posts = [] }) {
   // Grabs the part of the URL after the '?'
   // It looks for the value associated with 'cat'
   const [activeTab, setActiveTab] = useState(() => {
@@ -68,15 +66,6 @@ export default function Explore() {
     // Listen for changes in case user clicks the category at the side bar despite being in the explore page already
     window.addEventListener("hashchange", handleHashChange);
     return () => window.removeEventListener("hashchange", handleHashChange); // Cleanup when the user leaves the explorer page
-  }, []);
-
-  const [posts, setPosts] = useState([]);
-  
-  //  DATA FETCHING
-  useEffect(() => {
-    // fetch from the API here
-    const allPosts = loadPosts();
-    setPosts(allPosts);
   }, []);
 
   // CALCULATE COUNTS (Real + Placeholders)
@@ -156,7 +145,7 @@ export default function Explore() {
 }
 
 function ExploreCard({ post }) {
-  const commentCount = post.isPlaceholder ? 0 : loadComments(post.id).length;
+  const commentCount = post.isPlaceholder ? 0 : post.commentCount || 0;
   
   function handleClick(e) {
     // If it's a placeholder, don't navigate 

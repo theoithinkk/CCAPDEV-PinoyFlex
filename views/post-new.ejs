@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <header class="nav">
+    <div class="container">
+      <a href="/">PinoyFlex</a>
+      <a href="/posts">Posts</a>
+      <a href="/users">Users</a>
+      <a href="/posts/new">Create Post</a>
+      <a href="/users/me">My Profile</a>
+      <span class="spacer"></span>
+      <span>@<%= currentUser.username %></span>
+      <form method="POST" action="/auth/logout"><button type="submit">Logout</button></form>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="card">
+      <h1>Create Post</h1>
+      <% if (error) { %><p class="error"><%= error %></p><% } %>
+      <form method="POST" action="/posts">
+        <label>Title
+          <input name="title" required />
+        </label>
+        <label>Tag
+          <select name="tag">
+            <option>Beginners</option>
+            <option>Meal Prep</option>
+            <option>Form</option>
+            <option>Physique</option>
+            <option>Success</option>
+            <option>General</option>
+          </select>
+        </label>
+        <label>Body
+          <textarea name="body" rows="6" required></textarea>
+        </label>
+        <button class="btn" type="submit">Publish Post</button>
+      </form>
+    </div>
+  </main>
+</body>
+</html>

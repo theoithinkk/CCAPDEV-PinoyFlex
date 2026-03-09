@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <header class="nav">
+    <div class="container">
+      <a href="/">PinoyFlex</a>
+      <a href="/posts">Posts</a>
+      <a href="/users">Users</a>
+      <% if (currentUser) { %><a href="/posts/new">Create Post</a><a href="/users/me">My Profile</a><% } %>
+      <span class="spacer"></span>
+      <% if (currentUser) { %>
+        <span>@<%= currentUser.username %></span>
+        <form method="POST" action="/auth/logout"><button type="submit">Logout</button></form>
+      <% } else { %>
+        <a href="/auth/login">Login</a>
+        <a href="/auth/register">Register</a>
+      <% } %>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="card">
+      <h1>Users</h1>
+      <p class="muted">All registered users from the MongoDB database.</p>
+      <div class="list">
+        <% users.forEach(function(user) { %>
+          <div>
+            <strong>@<%= user.username %></strong>
+            <p class="muted"><%= user.bio || "No bio" %></p>
+          </div>
+        <% }) %>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

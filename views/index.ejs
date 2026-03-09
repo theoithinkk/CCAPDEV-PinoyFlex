@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <header class="nav">
+    <div class="container">
+      <a href="/">PinoyFlex</a>
+      <a href="/posts">Posts</a>
+      <a href="/users">Users</a>
+      <% if (currentUser) { %>
+        <a href="/posts/new">Create Post</a>
+        <a href="/users/me">My Profile</a>
+      <% } %>
+      <span class="spacer"></span>
+      <% if (currentUser) { %>
+        <span>@<%= currentUser.username %></span>
+        <form method="POST" action="/auth/logout">
+          <button type="submit">Logout</button>
+        </form>
+      <% } else { %>
+        <a href="/auth/login">Login</a>
+        <a href="/auth/register">Register</a>
+      <% } %>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="card">
+      <h1>PinoyFlex Forum Dashboard</h1>
+      <p class="muted">Back-end phase running on Node.js + MongoDB with session-based authentication.</p>
+      <div class="grid">
+        <div class="stat"><strong><%= stats.users %></strong><br />Users</div>
+        <div class="stat"><strong><%= stats.posts %></strong><br />Posts</div>
+        <div class="stat"><strong><%= stats.comments %></strong><br />Comments</div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Navigation</h2>
+      <div class="inline">
+        <a class="btn" href="/posts">Browse Posts</a>
+        <a class="btn secondary" href="/users">Browse Users</a>
+        <% if (currentUser) { %>
+          <a class="btn" href="/posts/new">Create New Post</a>
+        <% } else { %>
+          <a class="btn" href="/auth/login">Login to Create Post</a>
+        <% } %>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Latest Posts</h2>
+      <div class="list">
+        <% latestPosts.forEach(function(post) { %>
+          <div>
+            <h3 class="post-title"><a href="/posts/<%= post._id %>"><%= post.title %></a></h3>
+            <div class="muted">Tag: <%= post.tag %> | by <%= post.author?.username || "unknown" %></div>
+          </div>
+        <% }) %>
+      </div>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,8 +1,8 @@
-import { useEffect, useMemo, useState } from "react";
-import { addCustomTag, loadTags } from "../lib/tagsStorage";
+import { useEffect, useState } from "react";
+import { createTag, getTags } from "../lib/api";
 
 export default function CreatePostModal({ onClose, onCreate }) {
-  const [tags, setTags] = useState(() => loadTags());
+  const [tags, setTags] = useState(["General"]);
 
   const [title, setTitle] = useState("");
   const [tag, setTag] = useState(tags[0] || "General");
@@ -23,6 +23,25 @@ export default function CreatePostModal({ onClose, onCreate }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
+  useEffect(() => {
+    let mounted = true;
+    getTags()
+      .then((loaded) => {
+        if (!mounted) return;
+        const next = loaded.length > 0 ? loaded : ["General"];
+        setTags(next);
+        setTag((prev) => (next.includes(prev) ? prev : next[0]));
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setTags(["General"]);
+        setTag("General");
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   // If tags list changes, keep selected tag valid
   useEffect(() => {
     if (!tags.includes(tag)) {
@@ -41,18 +60,21 @@ export default function CreatePostModal({ onClose, onCreate }) {
     setImages((prev) => prev.filter((_, i) => i !== idx));
   }
 
-  function handleAddTag() {
+  async function handleAddTag() {
     setError("");
-    const res = addCustomTag(customTag);
-    if (!res.ok) {
-      if (res.reason === "empty") setError("Custom tag cannot be empty.");
-      else setError("That tag already exists.");
+    const cleaned = customTag.trim();
+    if (!cleaned) {
+      setError("Custom tag cannot be empty.");
       return;
     }
-    const nextTags = loadTags();
-    setTags(nextTags);
-    setTag(res.tag);
-    setCustomTag("");
+    try {
+      const created = await createTag(cleaned);
+      setTags((prev) => (prev.includes(created) ? prev : [...prev, created]));
+      setTag(created);
+      setCustomTag("");
+    } catch (err) {
+      setError(err?.message || "That tag already exists.");
+    }
   }
 
   function submit(e) {

@@ -1,19 +1,28 @@
 import { useState } from "react";
-import { updateUserProfile } from "../lib/authStorage";
 import blankAvatar from "../assets/avatars/blank.png";
 
-export default function EditProfileModal({ user, onClose, onSuccess }) {
+export default function EditProfileModal({ user, onClose, onSuccess, onSave }) {
   const [avatar, setAvatar] = useState(user.avatar || blankAvatar);
   const [bio, setBio] = useState(user.bio || "");
+  const [error, setError] = useState("");
 
-  function save() {
+  async function save() {
+    setError("");
     const updates = { 
       avatar: avatar.trim() === "" ? blankAvatar : avatar, 
       bio 
     };
-    updateUserProfile(user.username, updates);
-    onSuccess(updates);
-    onClose();
+    try {
+      if (onSave) {
+        const updatedUser = await onSave(updates);
+        onSuccess(updatedUser || updates);
+      } else {
+        onSuccess(updates);
+      }
+      onClose();
+    } catch (err) {
+      setError(err?.message || "Failed to update profile.");
+    }
   }
 
   return (
@@ -64,6 +73,8 @@ export default function EditProfileModal({ user, onClose, onSuccess }) {
               className="field-textarea" 
             />
           </label>
+
+          {error && <div className="form-error">{error}</div>}
 
           <button className="btn btn-primary" onClick={save}>Save Changes</button>
         </div>

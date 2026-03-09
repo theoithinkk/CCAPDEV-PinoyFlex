@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <header class="nav">
+    <div class="container">
+      <a href="/">PinoyFlex</a>
+      <a href="/posts">Posts</a>
+      <a href="/users">Users</a>
+      <span class="spacer"></span>
+      <a href="/auth/register">Register</a>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="card">
+      <h1>Login</h1>
+      <% if (error) { %><p class="error"><%= error %></p><% } %>
+      <form method="POST" action="/auth/login">
+        <label>Username
+          <input name="username" required />
+        </label>
+        <label>Password
+          <input type="password" name="password" required />
+        </label>
+        <button class="btn" type="submit">Login</button>
+      </form>
+    </div>
+  </main>
+</body>
+</html>

@@ -1,5 +1,3 @@
-import { loadComments } from "../lib/commentsStorage";
-import { loadPosts } from "../lib/postsStorage";
 import EarlyLifter from "../assets/badges/EarlyLifter.png";
 import Streak7 from "../assets/badges/Streak7.png";
 import TopContributor from "../assets/badges/TopContributor.png";
@@ -17,7 +15,7 @@ function timeAgo(ts) {
   return `${days}d ago`;
 }
 
-export default function Profile({ user, isCurrentUser, onEdit }) {
+export default function Profile({ user, isCurrentUser, onEdit, userPosts = [], userComments = [] }) {
   if (!user) {
     return (
       <div className="profile-card">
@@ -25,19 +23,6 @@ export default function Profile({ user, isCurrentUser, onEdit }) {
       </div>
     );
   }
-
-  const allPosts = loadPosts();
-  const posts = allPosts.filter((p) => p.author === user.username);
-
-  const comments = [];
-  allPosts.forEach((p) => {
-    const postComments = loadComments(p.id);
-    postComments.forEach((c) => {
-      if (c.author === user.username) {
-        comments.push({ ...c, postTitle: p.title });
-      }
-    });
-  });
 
   return (
     <div className="block profile-edit-card">
@@ -73,11 +58,11 @@ export default function Profile({ user, isCurrentUser, onEdit }) {
             <div className="profile-stat-label">Followers</div>
           </div>
           <div className="profile-stat">
-            <div className="profile-stat-value">{posts.length}</div>
+            <div className="profile-stat-value">{userPosts.length}</div>
             <div className="profile-stat-label">Posts</div>
           </div>
           <div className="profile-stat">
-            <div className="profile-stat-value">{comments.length}</div>
+            <div className="profile-stat-value">{userComments.length}</div>
             <div className="profile-stat-label">Comments</div>
           </div>
         </div>
@@ -129,13 +114,13 @@ export default function Profile({ user, isCurrentUser, onEdit }) {
 
       <div className="profile-section">
         <h3 className="profile-section-title">
-          {isCurrentUser ? "Your Posts" : "Posts"} ({posts.length})
+          {isCurrentUser ? "Your Posts" : "Posts"} ({userPosts.length})
         </h3>
-        {posts.length === 0 ? (
+        {userPosts.length === 0 ? (
           <div className="detail-muted">No posts yet.</div>
         ) : (
           <div className="profile-list">
-            {posts.map((p) => (
+            {userPosts.map((p) => (
               <a key={p.id} className="profile-item" href={`#/post/${p.id}`}>
                 <div className="profile-item-title">{p.title}</div>
                 <div className="profile-item-meta">
@@ -149,13 +134,13 @@ export default function Profile({ user, isCurrentUser, onEdit }) {
 
       <div className="profile-section">
         <h3 className="profile-section-title">
-          {isCurrentUser ? "Your Comments" : "Comments"} ({comments.length})
+          {isCurrentUser ? "Your Comments" : "Comments"} ({userComments.length})
         </h3>
-        {comments.length === 0 ? (
+        {userComments.length === 0 ? (
           <div className="detail-muted">No comments yet.</div>
         ) : (
           <div className="profile-list">
-            {comments.map((c) => (
+            {userComments.map((c) => (
               <a key={c.id} className="profile-item" href={`#/post/${c.postId}`}>
                 <div className="profile-item-title">{c.postTitle}</div>
                 <div className="profile-item-body">{c.body}</div>

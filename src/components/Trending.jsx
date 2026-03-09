@@ -1,8 +1,3 @@
-import React, { useState, useEffect, useMemo } from "react";
-import { loadPosts } from "../lib/postsStorage";
-import { loadComments } from "../lib/commentsStorage";
-
-
 // HARDCODED PLACEHOLDERS TAKEN FROM EXPLORE
 const PLACEHOLDER_POSTS = {
   "General": [
@@ -64,14 +59,8 @@ function timeAgo(ts) {
   return `${days}d ago`;
 }
 
-export default function Trending() {
+export default function Trending({ posts = [] }) {
     //const posts = TRENDING_POSTS["General"] || [];
-    const [posts, setPosts] = useState([]);
-
-    useEffect(() => {
-        const allPosts = loadPosts();
-        setPosts(allPosts);
-    }, []);
 
     const realPosts = posts;
     const placeholders = PLACEHOLDER_POSTS["General"] || [];
@@ -96,7 +85,7 @@ export default function Trending() {
     
 
 function TrendingPostCard({post, rank}) {
-    const commentCount = post.isPlaceholder ? (post.commentCount || 0) : loadComments(post.id).length;
+    const commentCount = post.commentCount || 0;
 
     function handleClick(e) {
     // If it's a placeholder, don't navigate 

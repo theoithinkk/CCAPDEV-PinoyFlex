@@ -1,5 +1,4 @@
 import { useEffect, useState } from "react";
-import { loadUsers, saveUsers } from "../lib/authStorage";
 
 export default function AuthModal({ mode, onClose, onSwitchMode, onSuccess }) {
   const isLogin = mode === "login";
@@ -26,37 +25,25 @@ export default function AuthModal({ mode, onClose, onSwitchMode, onSuccess }) {
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-function submit(e) {
-  e.preventDefault();
-  setError("");
+  async function submit(e) {
+    e.preventDefault();
+    setError("");
 
-  const u = username.trim();
-  if (u.length < 3) return setError("Username too short");
-  if (password.length < 4) return setError("Password too short");
+    const u = username.trim();
+    if (u.length < 3) return setError("Username too short");
+    if (password.length < 4) return setError("Password too short");
+    if (!isLogin && password !== confirm) return setError("Passwords do not match");
 
-  const users = loadUsers();
-  const found = users.find(x => x.username === u);
-
-  if (isLogin) {
-    if (!found) return setError("User not found");
-    if (found.password !== password) return setError("Wrong password");
-    return onSuccess(u);
+    try {
+      await onSuccess({
+        mode: isLogin ? "login" : "signup",
+        username: u,
+        password,
+      });
+    } catch (err) {
+      setError(err?.message || "Authentication failed.");
+    }
   }
-
-  // signup
-  if (password !== confirm) return setError("Passwords do not match");
-  if (found) return setError("Username already exists");
-
-  const newUser = {
-    id: crypto.randomUUID(),
-    username: u,
-    password,
-    avatar: "/avatars/default.png"
-  };
-
-  saveUsers([...users, newUser]);
-  onSuccess(u);
-}
 
 
   return (
