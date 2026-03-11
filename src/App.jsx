@@ -109,6 +109,7 @@ export default function App() {
     setSortOpen(false);
   }
 
+
   /* ===== Auth state ===== */
   const { session, isLoggedIn, login, register, logout, updateSession } = useAuth();
 
@@ -240,6 +241,32 @@ export default function App() {
   /* ===== Routing + posts ===== */
   const [posts, setPosts] = useState([]);
   const [route, setRoute] = useState(getRoute());
+
+    const sortedPosts = useMemo(() => {
+    const now = Date.now();
+    const copy = [...posts];
+    if (sortBy === "New") {
+      return copy.sort((a, b) => Number(b.createdAt || 0) - Number(a.createdAt || 0));
+    }
+    if (sortBy === "Top") {
+      return copy.sort((a, b) => Number(b.votes || 0) - Number(a.votes || 0));
+    }
+   if (sortBy === "Hot") {
+  // Score = votes + recency bonus (newer posts gets a bonus score of +20 and goes down for each hour past)
+  const score = (p) => {
+    const hoursOld = (now - Number(p.createdAt || 0)) / 3600000;
+    const recencyBonus = Math.max(0, 20 - hoursOld);
+    return Number(p.votes || 0) + recencyBonus;
+  };
+  return copy.sort((a, b) => score(b) - score(a));
+}
+    if (sortBy === "Best") {
+  // Score = votes + (comments * 0.5), favors posts with both votes and comment
+  const score = (p) => Number(p.votes || 0) + Number(p.commentCount || 0) * 0.5;
+  return copy.sort((a, b) => score(b) - score(a));
+}
+    return copy;
+  }, [posts, sortBy]);
 
   useEffect(() => {
     function onHashChange() {
@@ -1131,10 +1158,10 @@ export default function App() {
                   </button>
                 </div>
 
-                {posts.length === 0 ? (
+                {sortedPosts.length === 0 ? (
                   <div className="detail-muted">No posts yet.</div>
                 ) : (
-                  posts.map((p) => (
+                  sortedPosts.map((p) => (
                   <PostCard
                     key={p.id}
                     id={p.id}
