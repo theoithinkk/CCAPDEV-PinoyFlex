@@ -337,7 +337,9 @@ router.patch("/posts/:id", requireAuth, async (req, res, next) => {
   try {
     const post = await Post.findById(req.params.id).populate("author", "username avatar");
     if (!post) return res.status(404).json({ error: "Post not found." });
-    if (post.author._id.toString() !== req.session.user.id) return res.status(403).json({ error: "Forbidden." });
+    const isOwner = post.author._id.toString() === req.session.user.id;
+    const isAdmin = req.session.user.role === "admin";
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: "Forbidden." });
 
     const updates = {};
     if (typeof req.body.title === "string") updates.title = req.body.title.trim();
@@ -359,7 +361,9 @@ router.delete("/posts/:id", requireAuth, async (req, res, next) => {
   try {
     const post = await Post.findById(req.params.id);
     if (!post) return res.status(404).json({ error: "Post not found." });
-    if (post.author.toString() !== req.session.user.id) return res.status(403).json({ error: "Forbidden." });
+    const isOwner = post.author.toString() === req.session.user.id;
+    const isAdmin = req.session.user.role === "admin";
+    if (!isOwner && !isAdmin) return res.status(403).json({ error: "Forbidden." });
 
     await Comment.deleteMany({ post: post._id });
     await Post.findByIdAndDelete(post._id);
@@ -462,7 +466,7 @@ router.patch("/posts/:id/comments/:commentId", requireAuth, async (req, res, nex
     const post = await Post.findById(req.params.id);
     if (!post) return res.status(404).json({ error: "Post not found." });
 
-    const canEdit = comment.author._id.toString() === req.session.user.id;
+    const canEdit = comment.author._id.toString() === req.session.user.id || req.session.user.role === "admin";
     if (!canEdit) return res.status(403).json({ error: "Forbidden." });
 
     comment.body = body;
@@ -484,7 +488,8 @@ router.delete("/posts/:id/comments/:commentId", requireAuth, async (req, res, ne
 
     const isPostOwner = post.author.toString() === req.session.user.id;
     const isCommentOwner = comment.author._id.toString() === req.session.user.id;
-    if (!isPostOwner && !isCommentOwner) return res.status(403).json({ error: "Forbidden." });
+    const isAdmin = req.session.user.role === "admin";
+    if (!isPostOwner && !isCommentOwner && !isAdmin) return res.status(403).json({ error: "Forbidden." });
 
     await Comment.findByIdAndDelete(comment._id);
     res.json({ ok: true });
@@ -1140,7 +1145,23 @@ router.get("/admin/reports", requireAuth, requireAdmin, async (req, res, next) =
     ]);
 
     res.json({
-      reports: rows.map((report) => ({
+     reports: await Promise.all(rows.map(async (report) => {
+      let linkPostId = null;
+      let linkUsername = null;
+
+      if (report.targetType === "post") {
+        linkPostId = report.targetId;
+      }
+      if (report.targetType === "comment") {
+        const comment = await Comment.findById(report.targetId).lean();
+        if (comment) linkPostId = comment.post?.toString();
+      }
+      if (report.targetType === "user") {
+        const user = await User.findById(report.targetId).lean();
+        if (user) linkUsername = user.username;
+      }
+
+      return {
         id: report._id.toString(),
         targetType: report.targetType,
         targetId: report.targetId,
@@ -1151,7 +1172,10 @@ router.get("/admin/reports", requireAuth, requireAdmin, async (req, res, next) =
         reviewedBy: report.reviewedBy?.username || null,
         reviewedAt: report.reviewedAt ? new Date(report.reviewedAt).getTime() : null,
         createdAt: new Date(report.createdAt).getTime(),
-      })),
+        linkPostId,
+        linkUsername,
+      };
+    })),
       pagination: {
         page,
         limit,
@@ -1298,6 +1322,118 @@ router.patch("/admin/verifications/:id", requireAuth, requireAdmin, async (req, 
       .populate("reviewedBy", "username")
       .lean();
     res.json({ verification: toVerificationJSON(hydrated) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// Admin routes
+router.get("/admin/users", requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const { page, limit, skip } = parsePagination(req.query, { page: 1, limit: 30, maxLimit: 100 });
+    const q = (req.query.q || "").trim();
+    const query = q ? { username: new RegExp(escapeRegex(q), "i") } : {};
+
+    const [total, users] = await Promise.all([
+      User.countDocuments(query),
+      User.find(query).sort({ createdAt: -1 }).skip(skip).limit(limit).lean(),
+    ]);
+
+    const userIds = users.map((u) => u._id);
+    const [postCounts, commentCounts] = await Promise.all([
+      Post.aggregate([{ $match: { author: { $in: userIds } } }, { $group: { _id: "$author", count: { $sum: 1 } } }]),
+      Comment.aggregate([{ $match: { author: { $in: userIds } } }, { $group: { _id: "$author", count: { $sum: 1 } } }]),
+    ]);
+
+    const postMap = new Map(postCounts.map((r) => [r._id.toString(), r.count]));
+    const commentMap = new Map(commentCounts.map((r) => [r._id.toString(), r.count]));
+
+    res.json({
+      users: users.map((u) => ({
+        id: u._id.toString(),
+        username: u.username,
+        avatar: u.avatar,
+        role: u.role,
+        bio: u.bio || "",
+        badges: u.badges || [],
+        suspendedUntil: u.suspendedUntil ? new Date(u.suspendedUntil).getTime() : null,
+        postCount: postMap.get(u._id.toString()) || 0,
+        commentCount: commentMap.get(u._id.toString()) || 0,
+        createdAt: new Date(u.createdAt).getTime(),
+      })),
+      pagination: { page, limit, total, hasMore: skip + users.length < total },
+    });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.patch("/admin/users/:id", requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: "User not found." });
+    if (user._id.toString() === req.session.user.id) {
+      return res.status(400).json({ error: "You cannot moderate your own account." });
+    }
+
+    const action = String(req.body.action || "").trim();
+
+    if (action === "suspend_7d") {
+      user.suspendedUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+      await createNotification(user._id, {
+        type: "account_suspension",
+        title: "Your account has been suspended",
+        body: "Your account is suspended for 7 days due to a moderation action.",
+      });
+    } else if (action === "suspend_30d") {
+      user.suspendedUntil = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+      await createNotification(user._id, {
+        type: "account_suspension",
+        title: "Your account has been suspended",
+        body: "Your account is suspended for 30 days due to a moderation action.",
+      });
+    } else if (action === "ban") {
+      user.suspendedUntil = new Date("9999-12-31T00:00:00.000Z");
+      await createNotification(user._id, {
+        type: "account_ban",
+        title: "Your account has been banned",
+        body: "Your account has been permanently banned.",
+      });
+    } else if (action === "unsuspend") {
+      user.suspendedUntil = null;
+    } else if (action === "make_admin") {
+      user.role = "admin";
+    } else if (action === "remove_admin") {
+      user.role = "user";
+    } else {
+      return res.status(400).json({ error: "Invalid action." });
+    }
+
+    await user.save();
+    res.json({ ok: true, user: { id: user._id.toString(), username: user.username, role: user.role, suspendedUntil: user.suspendedUntil ? new Date(user.suspendedUntil).getTime() : null } });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.delete("/admin/users/:id", requireAuth, requireAdmin, async (req, res, next) => {
+  try {
+    const user = await User.findById(req.params.id);
+    if (!user) return res.status(404).json({ error: "User not found." });
+    if (user._id.toString() === req.session.user.id) {
+      return res.status(400).json({ error: "You cannot delete your own account." });
+    }
+
+    const posts = await Post.find({ author: user._id }).lean();
+    const postIds = posts.map((p) => p._id);
+    await Comment.deleteMany({ post: { $in: postIds } });
+    await Post.deleteMany({ author: user._id });
+    await Comment.deleteMany({ author: user._id });
+    await Follow.deleteMany({ $or: [{ follower: user._id }, { following: user._id }] });
+    await Notification.deleteMany({ user: user._id });
+    await User.findByIdAndDelete(user._id);
+
+    res.json({ ok: true });
   } catch (error) {
     next(error);
   }

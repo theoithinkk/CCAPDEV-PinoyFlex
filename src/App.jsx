@@ -35,6 +35,23 @@ import {
   votePost,
 } from "./lib/api";
 
+async function adminRequest(path, options = {}) {
+  const response = await fetch(path, {
+    credentials: "include",
+    headers: { "Content-Type": "application/json", ...(options.headers || {}) },
+    ...options,
+  });
+  let data = {};
+  try { data = await response.json(); } catch { data = {}; }
+  if (!response.ok) throw new Error(data?.error || "Request failed");
+  return data;
+}
+const adminGetUsers = (page = 1, q = "") => adminRequest(`/api/admin/users?page=${page}&q=${encodeURIComponent(q)}`);
+const adminModerateUser = (id, action) => adminRequest(`/api/admin/users/${id}`, { method: "PATCH", body: JSON.stringify({ action }) });
+const adminDeleteUser = (id) => adminRequest(`/api/admin/users/${id}`, { method: "DELETE" });
+const adminGetReports = (page = 1, status = "") => adminRequest(`/api/admin/reports?page=${page}&status=${encodeURIComponent(status)}`);
+const adminUpdateReport = (id, payload) => adminRequest(`/api/admin/reports/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+
 const tagColorCache = new Map();
 const FEATURED_NEWS_ROUTE = "#/news/periodized-upper-lower-brief";
 const FEATURED_NEWS_POST = {
@@ -92,6 +109,281 @@ function getCurrentUserVote(post, session) {
   if (!post || !session) return 0;
   const byUser = post.voteByUser || {};
   return byUser[session.id] ?? byUser[session.username] ?? 0;
+}
+
+// Admin parts
+function AdminPanel({ session, posts, setPosts, onToast, onRefreshPosts, adminGetUsers, adminModerateUser, adminDeleteUser, adminGetReports, adminUpdateReport }) {
+  const [tab, setTab] = useState("posts");
+  const [users, setUsers] = useState([]);
+  const [usersLoading, setUsersLoading] = useState(false);
+  const [userSearch, setUserSearch] = useState("");
+  const [reports, setReports] = useState([]);
+  const [reportsLoading, setReportsLoading] = useState(false);
+  const [reportFilter, setReportFilter] = useState("");
+  const [confirmAction, setConfirmAction] = useState(null);
+
+  useEffect(() => {
+    if (tab !== "users") return;
+    let mounted = true;
+    setUsersLoading(true);
+    adminGetUsers(1, userSearch)
+      .then((data) => { if (mounted) setUsers(data.users || []); })
+      .catch(() => { if (mounted) setUsers([]); })
+      .finally(() => { if (mounted) setUsersLoading(false); });
+    return () => { mounted = false; };
+  }, [tab, userSearch]);
+
+  useEffect(() => {
+    if (tab !== "reports") return;
+    let mounted = true;
+    setReportsLoading(true);
+    adminGetReports(1, reportFilter)
+      .then((data) => { if (mounted) setReports(data.reports || []); })
+      .catch(() => { if (mounted) setReports([]); })
+      .finally(() => { if (mounted) setReportsLoading(false); });
+    return () => { mounted = false; };
+  }, [tab, reportFilter]);
+
+  async function handleDeletePost(postId) {
+    try {
+      await fetch(`/api/posts/${postId}`, { method: "DELETE", credentials: "include" });
+      setPosts((prev) => prev.filter((p) => p.id !== postId));
+      onToast("Post deleted.");
+    } catch { onToast("Failed to delete post."); }
+    setConfirmAction(null);
+  }
+
+  async function handleUserAction(userId, action, label) {
+    try {
+      await adminModerateUser(userId, action);
+      onToast(`${label} applied.`);
+      const data = await adminGetUsers(1, userSearch);
+      setUsers(data.users || []);
+    } catch (err) { onToast(err?.message || "Action failed."); }
+    setConfirmAction(null);
+  }
+
+  async function handleDeleteUser(userId) {
+    try {
+      await adminDeleteUser(userId);
+      setUsers((prev) => prev.filter((u) => u.id !== userId));
+      onToast("User deleted.");
+    } catch (err) { onToast(err?.message || "Failed to delete user."); }
+    setConfirmAction(null);
+  }
+
+  async function handleReportAction(reportId, status, action) {
+    try {
+      await adminUpdateReport(reportId, { status, action: action || "", reviewNote: "" });
+      onToast("Report updated.");
+      const data = await adminGetReports(1, reportFilter);
+      setReports(data.reports || []);
+      if (action === "remove_comment" || action === "remove_post") {
+        await onRefreshPosts?.();
+      }
+    } catch (err) { onToast(err?.message || "Failed to update report."); }
+  }
+
+  const isSuspended = (u) => u.suspendedUntil && u.suspendedUntil > Date.now();
+
+  return (
+    <div className="block" style={{ padding: "1.5rem" }}>
+      <h2 style={{ marginTop: 0 }}>Admin Panel</h2>
+
+      <div className="profile-tabs" role="tablist" style={{ marginBottom: "1.5rem" }}>
+        {["posts", "users", "reports"].map((t) => (
+          <button key={t} type="button" role="tab" aria-selected={tab === t}
+            className={"profile-tab" + (tab === t ? " is-active" : "")}
+            onClick={() => setTab(t)}
+          >
+            {t.charAt(0).toUpperCase() + t.slice(1)}
+          </button>
+        ))}
+      </div>
+
+      {/* POSTS TAB */}
+      {tab === "posts" && (
+        <div>
+          <p className="detail-muted" style={{ marginTop: 0 }}>All posts — {posts.length} total. Admins can delete any post.</p>
+          <div className="profile-list">
+            {posts.map((p) => (
+              <div key={p.id} className="profile-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <a className="profile-item-title" href={`#/post/${p.id}`}>{p.title}</a>
+                  <div className="profile-item-meta">by @{p.author} · {p.votes} votes · {p.commentCount} comments · {p.tag}</div>
+                </div>
+                <button className="btn btn-danger" style={{ marginLeft: "1rem", padding: "4px 10px", fontSize: "0.85rem" }}
+                  onClick={() => setConfirmAction({ type: "delete_post", id: p.id, label: `Delete post "${p.title}"` })}
+                >
+                  Delete
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* USERS TAB */}
+      {tab === "users" && (
+        <div>
+          <input
+            className="nav-search"
+            style={{ marginBottom: "1rem", maxWidth: "300px" }}
+            placeholder="Search users..."
+            value={userSearch}
+            onChange={(e) => setUserSearch(e.target.value)}
+          />
+          {usersLoading ? (
+            <p className="detail-muted">Loading...</p>
+          ) : (
+            <div className="profile-list">
+              {users.map((u) => (
+                <div key={u.id} className="profile-item" style={{ display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "0.5rem" }}>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <a className="profile-item-title" href={`#/user/${u.username}`}>@{u.username}</a>
+                    <div className="profile-item-meta">
+                      {u.role === "admin" && <span style={{ color: "var(--primary)", fontWeight: 700, marginRight: 6 }}>ADMIN</span>}
+                      {isSuspended(u) && <span style={{ color: "#dc2626", fontWeight: 700, marginRight: 6 }}>SUSPENDED</span>}
+                      {u.postCount} posts · {u.commentCount} comments
+                    </div>
+                  </div>
+                  {u.id !== session?.id && (
+                    <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+                      {isSuspended(u) ? (
+                        <button className="btn btn-secondary" style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                          onClick={() => setConfirmAction({ type: "user_action", id: u.id, action: "unsuspend", label: `Unsuspend @${u.username}` })}
+                        >Unsuspend</button>
+                      ) : (
+                        <>
+                          <button className="btn btn-secondary" style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                            onClick={() => setConfirmAction({ type: "user_action", id: u.id, action: "suspend_7d", label: `Suspend @${u.username} for 7 days` })}
+                          >7d Suspend</button>
+                          <button className="btn btn-secondary" style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                            onClick={() => setConfirmAction({ type: "user_action", id: u.id, action: "suspend_30d", label: `Suspend @${u.username} for 30 days` })}
+                          >30d Suspend</button>
+                          <button className="btn btn-secondary" style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                            onClick={() => setConfirmAction({ type: "user_action", id: u.id, action: "ban", label: `Permanently ban @${u.username}` })}
+                          >Ban</button>
+                        </>
+                      )}
+                      {u.role !== "admin" ? (
+                        <button className="btn btn-secondary" style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                          onClick={() => setConfirmAction({ type: "user_action", id: u.id, action: "make_admin", label: `Make @${u.username} admin` })}
+                        >Make Admin</button>
+                      ) : (
+                        <button className="btn btn-secondary" style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                          onClick={() => setConfirmAction({ type: "user_action", id: u.id, action: "remove_admin", label: `Remove admin from @${u.username}` })}
+                        >Remove Admin</button>
+                      )}
+                      <button className="btn btn-danger" style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                        onClick={() => setConfirmAction({ type: "delete_user", id: u.id, label: `Delete account @${u.username} and all their content` })}
+                      >Delete</button>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* REPORTS TAB */}
+      {tab === "reports" && (
+        <div>
+          <select className="field-select" style={{ marginBottom: "1rem", maxWidth: "200px" }}
+            value={reportFilter} onChange={(e) => setReportFilter(e.target.value)}
+          >
+            <option value="">All reports</option>
+            <option value="open">Open</option>
+            <option value="reviewed">Reviewed</option>
+            <option value="dismissed">Dismissed</option>
+            <option value="actioned">Actioned</option>
+          </select>
+          {reportsLoading ? (
+            <p className="detail-muted">Loading...</p>
+          ) : reports.length === 0 ? (
+            <p className="detail-muted">No reports found.</p>
+          ) : (
+            <div className="profile-list">
+              {reports.map((r) => (
+                <div key={r.id} className="profile-item">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.5rem" }}>
+                    <div style={{ flex: 1 }}>
+                      <div className="profile-item-title">
+                        <span style={{ textTransform: "capitalize" }}>{r.targetType}</span> report by @{r.reporter}
+                        <span className="detail-tag" style={{ marginLeft: 8, fontSize: "0.75rem", padding: "2px 6px" }}>{r.status}</span>
+                      </div>
+                      <div className="profile-item-body">{r.reason}</div>
+                      <div className="profile-item-meta" style={{ display: "flex", gap: "0.75rem", alignItems: "center" }}>
+                        <span>{new Date(r.createdAt).toLocaleDateString()}</span>
+                        {r.linkPostId && (
+                          
+                            <a href={r.targetType === "comment" ? `#/post/${r.linkPostId}?highlight=${r.targetId}` : `#/post/${r.linkPostId}`}
+                            className="btn btn-secondary"
+                            style={{ padding: "2px 8px", fontSize: "0.8rem" }}
+                          >
+                            View {r.targetType === "comment" ? "Comment's Post" : "Post"}
+                          </a>
+                        )}
+                        {r.linkUsername && (
+                          <a href={`#/user/${r.linkUsername}`} className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.8rem" }}>
+                            View User
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                    {r.status === "open" && (
+                      <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+                        <button className="btn btn-secondary" style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                          onClick={() => handleReportAction(r.id, "dismissed", "")}
+                        >Dismiss</button>
+                        {r.targetType === "post" && (
+                          <button className="btn btn-danger" style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                            onClick={() => handleReportAction(r.id, "actioned", "remove_post")}
+                          >Remove Post</button>
+                        )}
+                        {r.targetType === "comment" && (
+                          <button className="btn btn-danger" style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                            onClick={() => handleReportAction(r.id, "actioned", "remove_comment")}
+                          >Remove Comment</button>
+                        )}
+                        {r.targetType === "user" && (
+                          <button className="btn btn-danger" style={{ padding: "4px 8px", fontSize: "0.8rem" }}
+                            onClick={() => handleReportAction(r.id, "actioned", "suspend_user_7d")}
+                          >Suspend 7d</button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* CONFIRM MODAL */}
+      {confirmAction && (
+        <div className="modal-backdrop" onMouseDown={() => setConfirmAction(null)}>
+          <div className="modal modal-confirm" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <h2 className="modal-title">Confirm Action</h2>
+              <button className="modal-x" onClick={() => setConfirmAction(null)}>✕</button>
+            </div>
+            <p className="modal-confirm-text">{confirmAction.label}</p>
+            <div className="modal-confirm-actions">
+              <button className="btn btn-secondary" onClick={() => setConfirmAction(null)}>Cancel</button>
+              <button className="btn btn-danger" onClick={() => {
+                if (confirmAction.type === "delete_post") handleDeletePost(confirmAction.id);
+                else if (confirmAction.type === "user_action") handleUserAction(confirmAction.id, confirmAction.action, confirmAction.label);
+                else if (confirmAction.type === "delete_user") handleDeleteUser(confirmAction.id);
+              }}>Confirm</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
 }
 
 
@@ -278,6 +570,7 @@ export default function App() {
 
   // -- Parse Route Params --
   const activePostId = parsePostIdFromHash(route);
+  const highlightCommentId = parseHighlightCommentFromHash(route);
   const activePost = activePostId ? posts.find((p) => p.id === activePostId) : null;
   
   const searchQuery = route.startsWith("#/search") 
@@ -678,6 +971,11 @@ export default function App() {
             <a className={"navlink" + (route.startsWith("#/trending") ? " is-active" : "")} href="#/trending">
               Trending
             </a>
+            {session?.role === "admin" && (
+              <a className={"navlink navlink-admin" + (route.startsWith("#/admin") ? " is-active" : "")} href="#/admin">
+                Admin
+              </a>
+            )}
           </nav>
 
           <div className="nav-center">
@@ -1102,6 +1400,23 @@ export default function App() {
                   onVote={handleVote}
                   onRequireLogin={openLogin}
                 />
+              ) : route.startsWith("#/admin") ? (
+                session?.role === "admin" ? (
+                  <AdminPanel
+                    session={session}
+                    posts={posts}
+                    setPosts={setPosts}
+                    onToast={setToast}
+                    onRefreshPosts={async () => { const p = await getPosts(); setPosts(p); }}
+                    adminGetUsers={adminGetUsers}
+                    adminModerateUser={adminModerateUser}
+                    adminDeleteUser={adminDeleteUser}
+                    adminGetReports={adminGetReports}
+                    adminUpdateReport={adminUpdateReport}
+                  />
+                ) : (
+                  <div className="detail-card"><h2>Access Denied</h2><p className="detail-muted">Admins only.</p></div>
+                )
               ) : activePostId ? (
               <PostDetail
                 post={activePost}
@@ -1112,6 +1427,7 @@ export default function App() {
                 onReportPost={(target) => openReportModal(target)}
                 currentUserVote={getCurrentUserVote(activePost, session)}
                 onEditPost={() => handleEditPost(activePost)}
+                highlightCommentId={highlightCommentId}
                 onDeletePost={async (postId) => {
                   try {
                     await removePost(postId);
@@ -1829,7 +2145,8 @@ function PostDetail({
   onVotePost,
   onReportPost,
   currentUserVote = 0,
-  onEditPost 
+  onEditPost,
+  highlightCommentId = null,
 }) {
   const [comments, setComments] = useState([]);
   const [text, setText] = useState("");
@@ -1837,10 +2154,21 @@ function PostDetail({
   const [lightboxOpen, setLightboxOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  
+  const [highlightedId, setHighlightedId] = useState(null);
+
   // Comment Editing State
   const [editingCommentId, setEditingCommentId] = useState(null);
   const [editBody, setEditBody] = useState("");
+
+  // Highlight comment from report link
+  useEffect(() => {
+    if (!highlightCommentId || comments.length === 0) return;
+    setHighlightedId(highlightCommentId);
+    const el = document.getElementById(`comment-${highlightCommentId}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "center" });
+    const t = setTimeout(() => setHighlightedId(null), 2500);
+    return () => clearTimeout(t);
+  }, [highlightCommentId, comments]);
 
   useEffect(() => {
     if (!post) return;
@@ -2044,21 +2372,33 @@ function PostDetail({
           {comments.length === 0 ? (
             <div className="detail-muted">Be the first to comment.</div>
           ) : (
-            comments.map((c) => (
-              <div className="comment" key={c.id}>
+           comments.map((c) => (
+              <div
+                className="comment"
+                key={c.id}
+                id={`comment-${c.id}`}
+                style={highlightedId === c.id ? { background: "rgba(234, 179, 8, 0.2)", borderRadius: "8px", transition: "background 0.4s" } : { transition: "background 0.4s" }}
+              >
                 <div className="comment-head">
                   <div className="comment-meta">
                     <a href={`#/user/${c.author}`}><strong>{c.author}</strong></a> · {timeAgo(c.createdAt)} {c.lastEdited && <span style={{fontSize:'0.8em', opacity:0.7}}> (edited)</span>}
                   </div>
                   <div className="comment-actions">
-                     {isLoggedIn && c.author === session?.username && (
-                       <button className="comment-delete" style={{marginRight:'10px', color:'var(--text-secondary)'}} onClick={() => { setEditingCommentId(c.id); setEditBody(c.body); }}>
-                         Edit
-                       </button>
-                     )}
-                     {(isOwner || session?.username === c.author) && (
+                    {isLoggedIn && c.author === session?.username && (
+                      <button className="comment-delete" style={{marginRight:'10px', color:'var(--text-secondary)'}} onClick={() => { setEditingCommentId(c.id); setEditBody(c.body); }}>
+                        Edit
+                      </button>
+                    )}
+                    {(isOwner || session?.username === c.author) && (
                       <button className="comment-delete" type="button" onClick={() => handleDeleteComment(c.id, c.author)}>
                         Delete
+                      </button>
+                    )}
+                    {isLoggedIn && c.author !== session?.username && (
+                      <button className="comment-delete" type="button" style={{ marginLeft: "10px", color: "var(--text-secondary)" }}
+                        onClick={() => onReportPost?.({ type: "comment", id: c.id, title: `Comment by @${c.author}` })}
+                      >
+                        Report
                       </button>
                     )}
                   </div>
@@ -2126,9 +2466,15 @@ function getRoute() {
 }
 
 function parsePostIdFromHash(hash) {
-  const m = hash.match(/^#\/post\/(.+)$/);
+  const m = hash.match(/^#\/post\/([^?]+)/);
   return m ? m[1] : null;
 }
+
+function parseHighlightCommentFromHash(hash) {
+  const m = hash.match(/[?&]highlight=([^&]+)/);
+  return m ? m[1] : null;
+}
+
 
 function formatDateKey(ts) {
   const d = new Date(ts);
