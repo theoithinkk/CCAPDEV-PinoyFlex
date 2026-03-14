@@ -3,18 +3,22 @@ import { getSession, loginUser, logoutUser, registerUser } from "../lib/api";
 
 export function useAuth() {
   const [session, setSession] = useState(null);
+  const [authReady, setAuthReady] = useState(false);
 
   useEffect(() => {
     let mounted = true;
     getSession()
-      .then((user) => {
-        if (mounted) setSession(user);
+      .then((user) => { 
+        if (mounted) setSession(user); 
       })
-      .catch(() => {
-        if (mounted) setSession(null);
+      .catch(() => { 
+        if (mounted) setSession(null); 
+      })
+      .finally(() => { 
+        if (mounted) setAuthReady(true); 
       });
-    return () => {
-      mounted = false;
+    return () => { 
+      mounted = false; 
     };
   }, []);
 
@@ -44,6 +48,7 @@ export function useAuth() {
   return {
     session,
     isLoggedIn,
+    authReady,
     login,
     register,
     logout,
