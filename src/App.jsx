@@ -51,6 +51,8 @@ const adminModerateUser = (id, action) => adminRequest(`/api/admin/users/${id}`,
 const adminDeleteUser = (id) => adminRequest(`/api/admin/users/${id}`, { method: "DELETE" });
 const adminGetReports = (page = 1, status = "") => adminRequest(`/api/admin/reports?page=${page}&status=${encodeURIComponent(status)}`);
 const adminUpdateReport = (id, payload) => adminRequest(`/api/admin/reports/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
+const adminGetVerifications = (page = 1, status = "") => adminRequest(`/api/admin/verifications?page=${page}&status=${encodeURIComponent(status)}`);
+const adminUpdateVerification = (id, payload) => adminRequest(`/api/admin/verifications/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
 
 const tagColorCache = new Map();
 const FEATURED_NEWS_ROUTE = "#/news/periodized-upper-lower-brief";
@@ -111,8 +113,13 @@ function getCurrentUserVote(post, session) {
   return byUser[session.id] ?? byUser[session.username] ?? 0;
 }
 
+function RedirectToLogin({ onMount }) {
+  useEffect(() => { onMount(); }, []);
+  return null;
+}
+
 // Admin parts
-function AdminPanel({ session, posts, setPosts, onToast, onRefreshPosts, adminGetUsers, adminModerateUser, adminDeleteUser, adminGetReports, adminUpdateReport }) {
+function AdminPanel({ session, posts, setPosts, onToast, onRefreshPosts, adminGetUsers, adminModerateUser, adminDeleteUser, adminGetReports, adminUpdateReport, adminGetVerifications, adminUpdateVerification }) {
   const [tab, setTab] = useState("posts");
   const [users, setUsers] = useState([]);
   const [usersLoading, setUsersLoading] = useState(false);
@@ -121,6 +128,9 @@ function AdminPanel({ session, posts, setPosts, onToast, onRefreshPosts, adminGe
   const [reportsLoading, setReportsLoading] = useState(false);
   const [reportFilter, setReportFilter] = useState("");
   const [confirmAction, setConfirmAction] = useState(null);
+  const [verifications, setVerifications] = useState([]);
+  const [verificationsLoading, setVerificationsLoading] = useState(false);
+  const [verificationFilter, setVerificationFilter] = useState("pending");
 
   useEffect(() => {
     if (tab !== "users") return;
@@ -143,6 +153,18 @@ function AdminPanel({ session, posts, setPosts, onToast, onRefreshPosts, adminGe
       .finally(() => { if (mounted) setReportsLoading(false); });
     return () => { mounted = false; };
   }, [tab, reportFilter]);
+
+    useEffect(() => {
+    if (tab !== "verifications") return;
+    let mounted = true;
+    setVerificationsLoading(true);
+    adminGetVerifications(1, verificationFilter)
+      .then((data) => { if (mounted) setVerifications(data.verifications || []); })
+      .catch(() => { if (mounted) setVerifications([]); })
+      .finally(() => { if (mounted) setVerificationsLoading(false); });
+    return () => { mounted = false; };
+  }, [tab, verificationFilter]);
+
 
   async function handleDeletePost(postId) {
     try {
@@ -184,6 +206,15 @@ function AdminPanel({ session, posts, setPosts, onToast, onRefreshPosts, adminGe
     } catch (err) { onToast(err?.message || "Failed to update report."); }
   }
 
+    async function handleVerificationAction(id, status, reviewNote = "") {
+    try {
+      await adminUpdateVerification(id, { status, reviewNote });
+      onToast(`Verification ${status}.`);
+      const data = await adminGetVerifications(1, verificationFilter);
+      setVerifications(data.verifications || []);
+    } catch (err) { onToast(err?.message || "Action failed."); }
+  }
+
   const isSuspended = (u) => u.suspendedUntil && u.suspendedUntil > Date.now();
 
   return (
@@ -191,7 +222,7 @@ function AdminPanel({ session, posts, setPosts, onToast, onRefreshPosts, adminGe
       <h2 style={{ marginTop: 0 }}>Admin Panel</h2>
 
       <div className="profile-tabs" role="tablist" style={{ marginBottom: "1.5rem" }}>
-        {["posts", "users", "reports"].map((t) => (
+        {["posts", "users", "reports", "verifications"].map((t) => (
           <button key={t} type="button" role="tab" aria-selected={tab === t}
             className={"profile-tab" + (tab === t ? " is-active" : "")}
             onClick={() => setTab(t)}
@@ -362,6 +393,60 @@ function AdminPanel({ session, posts, setPosts, onToast, onRefreshPosts, adminGe
         </div>
       )}
 
+      {/* VERIFICATIONS TAB */}
+      {tab === "verifications" && (
+        <div>
+          <select className="field-select" style={{ marginBottom: "1rem", maxWidth: "200px" }}
+            value={verificationFilter} onChange={(e) => setVerificationFilter(e.target.value)}
+          >
+            <option value="pending">Pending</option>
+            <option value="approved">Approved</option>
+            <option value="rejected">Rejected</option>
+            <option value="">All</option>
+          </select>
+          {verificationsLoading ? (
+            <p className="detail-muted">Loading...</p>
+          ) : verifications.length === 0 ? (
+            <p className="detail-muted">No verifications found.</p>
+          ) : (
+            <div className="profile-list">
+              {verifications.map((v) => (
+                <div key={v.id} className="profile-item">
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: "0.5rem" }}>
+                    <div style={{ flex: 1 }}>
+                      <div className="profile-item-title">
+                        <a href={`#/user/${v.username}`}>@{v.username}</a>
+                        <span className="detail-tag" style={{ marginLeft: 8, fontSize: "0.75rem", padding: "2px 6px", textTransform: "capitalize" }}>{v.badgeKey}</span>
+                        <span className="detail-tag" style={{ marginLeft: 4, fontSize: "0.75rem", padding: "2px 6px", textTransform: "capitalize", opacity: 0.7 }}>{v.status}</span>
+                      </div>
+                      {v.note && <div className="profile-item-body">"{v.note}"</div>}
+                      <div className="profile-item-meta" style={{ display: "flex", gap: "0.75rem", alignItems: "center", flexWrap: "wrap" }}>
+                        <span>{new Date(v.createdAt).toLocaleDateString()}</span>
+                        {v.proofUrl && (
+                          <a href={v.proofUrl} target="_blank" rel="noreferrer" className="btn btn-secondary" style={{ padding: "2px 8px", fontSize: "0.8rem" }}>
+                            View Proof
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                    {v.status === "pending" && (
+                      <div style={{ display: "flex", gap: "0.4rem" }}>
+                        <button className="btn btn-primary" style={{ padding: "4px 10px", fontSize: "0.8rem" }}
+                          onClick={() => handleVerificationAction(v.id, "approved")}
+                        >Approve</button>
+                        <button className="btn btn-danger" style={{ padding: "4px 10px", fontSize: "0.8rem" }}
+                          onClick={() => handleVerificationAction(v.id, "rejected")}
+                        >Reject</button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* CONFIRM MODAL */}
       {confirmAction && (
         <div className="modal-backdrop" onMouseDown={() => setConfirmAction(null)}>
@@ -403,7 +488,7 @@ export default function App() {
 
 
   /* ===== Auth state ===== */
-  const { session, isLoggedIn, login, register, logout, updateSession } = useAuth();
+  const { session, isLoggedIn, authReady, login, register, logout, updateSession } = useAuth();
 
   const [authOpen, setAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState("login"); // login | signup
@@ -428,12 +513,25 @@ export default function App() {
     setAuthOpen(true);
   }
 
-  /* ===== Badge verification (static demo) ===== */
-  const badgeOptions = useMemo(
-    () => ["225 lb Bench", "315 lb Squat", "405 lb Deadlift", "10 Strict Pullups"],
-    []
-  );
-  const [selectedBadge, setSelectedBadge] = useState("225 lb Bench");
+  /* ===== Badge verification ===== */
+  const [selectedBadge, setSelectedBadge] = useState("");
+  const [badgeOptions, setBadgeOptions] = useState([]);
+  const [verifyFile, setVerifyFile] = useState(null);
+  const [verifyNote, setVerifyNote] = useState("");
+  const [verifySubmitting, setVerifySubmitting] = useState(false);
+  const [verifySuccess, setVerifySuccess] = useState(false);
+  const [verifyError, setVerifyError] = useState("");
+  const [myVerifications, setMyVerifications] = useState([]);
+  const [myVerificationsLoaded, setMyVerificationsLoaded] = useState(false);
+
+    useEffect(() => {
+    fetch("/api/badges").then(r => r.json()).then(data => {
+      const keys = (data.badges || []).map(b => b.key);
+      setBadgeOptions(keys);
+      if (keys.length > 0) setSelectedBadge(keys[0]);
+    }).catch(() => {});
+  }, []);
+
 
   /* ===== Personal workout logs ===== */
   const [logDate, setLogDate] = useState(() => formatDateKey(Date.now()));
@@ -533,6 +631,14 @@ export default function App() {
   /* ===== Routing + posts ===== */
   const [posts, setPosts] = useState([]);
   const [route, setRoute] = useState(getRoute());
+
+    useEffect(() => {
+    if (route !== "#/verify" || !isLoggedIn || myVerificationsLoaded) return;
+    fetch("/api/verifications/me", { credentials: "include" })
+      .then(r => r.json())
+      .then(data => { setMyVerifications(data.verifications || []); setMyVerificationsLoaded(true); })
+      .catch(() => setMyVerificationsLoaded(true));
+  }, [route, isLoggedIn, myVerificationsLoaded]);
 
     const sortedPosts = useMemo(() => {
     const now = Date.now();
@@ -1209,7 +1315,10 @@ export default function App() {
 
           {/* ===== Main feed ===== */}
           <main className="feed">
-              {route === "#/verify" ? (
+            {route === "#/verify" ? (
+                !authReady ? null : !isLoggedIn ? (
+                  <RedirectToLogin onMount={() => { window.location.hash = "#/"; openLogin(); }} />
+                ) : (
                 <div className="verify-page">
                   <div className="verify-card">
                     <div className="verify-header">
@@ -1225,53 +1334,99 @@ export default function App() {
                           <span className="verify-step">3. Wait for review</span>
                         </div>
                       </div>
-                      <a className="btn btn-secondary" href="#/">
-                        Back to Feed
-                      </a>
                     </div>
+                    {(() => {
+                      return (
+                        <>
+                          {verifySuccess && (
+                            <div className="verify-section">
+                              <div style={{ background: "rgba(34,197,94,0.12)", border: "1px solid rgba(34,197,94,0.4)", borderRadius: "10px", padding: "1rem" }}>
+                                <div style={{ fontWeight: 700, marginBottom: "4px" }}>Submitted successfully!</div>
+                                <div className="detail-muted">Your verification request is now pending review. You'll receive a notification once it's been reviewed.</div>
+                              </div>
+                            </div>
+                          )}
+                          <div className="verify-section">
+                            <div className="verify-label">Pick a badge to verify</div>
+                            <div className="verify-badges" role="listbox" aria-label="Badge options">
+                              {badgeOptions.map((badge) => (
+                                <button
+                                  key={badge}
+                                  className={"verify-badge" + (selectedBadge === badge ? " is-selected" : "")}
+                                  type="button"
+                                  onClick={() => setSelectedBadge(badge)}
+                                  role="option"
+                                  aria-selected={selectedBadge === badge}
+                                >
+                                  {badge}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
 
-                    <div className="verify-section">
-                      <div className="verify-label">Pick a badge to verify</div>
-                      <div className="verify-badges" role="listbox" aria-label="Badge options">
-                        {badgeOptions.map((badge) => (
-                          <button
-                            key={badge}
-                            className={"verify-badge" + (selectedBadge === badge ? " is-selected" : "")}
-                            type="button"
-                            onClick={() => setSelectedBadge(badge)}
-                            role="option"
-                            aria-selected={selectedBadge === badge}
-                          >
-                            {badge}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
+                          <div className="verify-section">
+                            <label className="verify-field">
+                              <span className="verify-label">Upload your lift video</span>
+                              <span className="verify-help">Use a clear side angle and show full lockout. Max 25MB.</span>
+                              <input className="verify-input" type="file" accept="video/*"
+                                onChange={(e) => { setVerifyFile(e.target.files[0] || null); setVerifyError(""); }}
+                              />
+                            </label>
+                            <label className="verify-field">
+                              <span className="verify-label">Notes (optional)</span>
+                              <textarea
+                                className="verify-textarea"
+                                rows="4"
+                                placeholder="Add equipment used, gym setup, and any useful context for reviewers."
+                                value={verifyNote}
+                                onChange={(e) => setVerifyNote(e.target.value)}
+                              />
+                            </label>
+                          </div>
 
-                    <div className="verify-section">
-                      <label className="verify-field">
-                        <span className="verify-label">Upload your lift video</span>
-                        <span className="verify-help">Use a clear side angle and show full lockout.</span>
-                        <input className="verify-input" type="file" accept="video/*" />
-                      </label>
-                      <label className="verify-field">
-                        <span className="verify-label">Notes (optional)</span>
-                        <textarea
-                          className="verify-textarea"
-                          rows="4"
-                          placeholder="Add equipment used, gym setup, and any useful context for reviewers."
-                        />
-                      </label>
-                    </div>
+                          {verifyError && <div style={{ color: "#dc2626", marginBottom: "0.75rem", fontSize: "0.9rem" }}>{verifyError}</div>}
 
-                    <div className="verify-actions">
-                      <button className="btn btn-primary" type="button">
-                        Submit for Review
-                      </button>
-                      <div className="verify-hint">
-                         Your submission will be reviewed within 3-5 days.
-                      </div>
-                    </div>
+                          <div className="verify-actions">
+                            <button className="btn btn-primary" type="button"
+                              disabled={verifySubmitting || !verifyFile || !selectedBadge}
+                              onClick={async () => {
+                                if (!verifyFile || !selectedBadge) return;
+                                setVerifySubmitting(true);
+                                setVerifyError("");
+                                setVerifySuccess(false);
+                                try {
+                                  const fd = new FormData();
+                                  fd.append("proof", verifyFile);
+                                  const uploadRes = await fetch("/api/verifications/upload", { method: "POST", credentials: "include", body: fd });
+                                  const uploadData = await uploadRes.json();
+                                  if (!uploadRes.ok) throw new Error(uploadData.error || "Upload failed.");
+                                  const submitRes = await fetch("/api/verifications", {
+                                    method: "POST",
+                                    credentials: "include",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ badgeKey: selectedBadge, proofUrl: uploadData.proofUrl, note: verifyNote }),
+                                  });
+                                  const submitData = await submitRes.json();
+                                  if (!submitRes.ok) throw new Error(submitData.error || "Submission failed.");
+                                  setMyVerifications(prev => [submitData.verification, ...prev]);
+                                  setVerifySuccess(true);
+                                  setVerifyFile(null);
+                                  setVerifyNote("");
+                                } catch (err) {
+                                  setVerifyError(err.message || "Something went wrong.");
+                                } finally {
+                                  setVerifySubmitting(false);
+                                }
+                              }}
+                            >
+                              {verifySubmitting ? "Uploading..." : "Submit for Review"}
+                            </button>
+                            <div className="verify-hint">Your submission will be reviewed within 3-5 days.</div>
+                          </div>
+                        </>
+                      );
+                    })()}
+
                     <div className="verify-trust-row" aria-label="Verification standards">
                       <span className="verify-trust-pill">Manual review</span>
                       <span className="verify-trust-pill">No hidden fees</span>
@@ -1279,6 +1434,7 @@ export default function App() {
                     </div>
                   </div>
                 </div>
+                )
               ) : route.startsWith("#/news") ? (
                 <NewsDetailPost news={FEATURED_NEWS_POST} reference={FEATURED_NEWS_REFERENCE} />
               ) : route === "#/log-calendar" ? (
@@ -1413,6 +1569,8 @@ export default function App() {
                     adminDeleteUser={adminDeleteUser}
                     adminGetReports={adminGetReports}
                     adminUpdateReport={adminUpdateReport}
+                    adminGetVerifications={adminGetVerifications}
+                    adminUpdateVerification={adminUpdateVerification}
                   />
                 ) : (
                   <div className="detail-card"><h2>Access Denied</h2><p className="detail-muted">Admins only.</p></div>
