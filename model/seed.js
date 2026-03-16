@@ -51,6 +51,14 @@ const SAMPLE_USERS = [
     role: "user",
     badges: ["squat-315"],
   },
+  {
+    username: "pinoyflex_editorial",
+    password: "1234",
+    avatar: "/avatars/blank.png",
+    bio: "Official PinoyFlex editorial desk.",
+    role: "editorial",
+    badges: [],
+  },
 ];
 
 const DEFAULT_TAGS = ["Form", "Meal Prep", "Physique", "Beginners", "General", "Success"];
@@ -117,6 +125,17 @@ const SAMPLE_POSTS = [
     images: [],
     votes: 0,
   },
+  {
+    key: "news1",
+    title: "Push Pull Legs no longer default for intermediates? New 12-week trial says periodized upper/lower may edge ahead",
+    body: "A controlled 12-week intervention tracked 96 intermediate lifters across two commonly used split models: a classic push/pull/legs routine and a periodized upper/lower schedule. The researchers reported that both groups improved lean mass, but the periodized upper/lower group showed stronger average hypertrophy markers in the quads and upper back while maintaining similar strength progression. Weekly fatigue scores were also slightly lower in the periodized group. The authors note that this does not make PPL obsolete. Their conclusion focuses on workload management and progression quality for intermediates with limited recovery bandwidth. Practical takeaway: if progression has stalled on a static split, a periodized upper/lower setup may offer a better stimulus-to-fatigue ratio without increasing training days.",
+    tag: "General",
+    author: "pinoyflex_editorial",
+    images: [],
+    votes: 0,
+    postType: "news",
+    newsReference: "M. Reyes, J. Dela Cruz, T. Navarro (2026). Split Strategy and Hypertrophy Outcomes in Intermediate Lifters. Journal of Applied Strength Science, 14(2), 77-91.",
+  },
 ];
 
 const SAMPLE_COMMENTS = [
@@ -148,8 +167,8 @@ const SAMPLE_LOGS = [
 
 function shouldSeed(counts) {
   return (
-    counts.users < 5 ||
-    counts.posts < 6 ||
+    counts.users < 6 ||
+    counts.posts < 7 ||
     counts.comments < 7 ||
     counts.tags < DEFAULT_TAGS.length ||
     counts.badges < DEFAULT_BADGES.length ||
@@ -204,6 +223,7 @@ export async function seedDatabase(options = {}) {
       bio: user.bio,
       role: user.role,
       badges: user.badges,
+      recentSearches: [],
     });
     userMap.set(user.username, created);
   }
@@ -218,6 +238,8 @@ export async function seedDatabase(options = {}) {
       images: post.images || [],
       votes: post.votes ?? 0,
       voteByUser: {},
+      postType: post.postType || "post",
+      newsReference: post.newsReference || "",
     });
     postMap.set(post.key, created);
   }

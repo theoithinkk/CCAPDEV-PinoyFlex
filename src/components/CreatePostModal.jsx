@@ -1,12 +1,14 @@
 import { useEffect, useState } from "react";
 import { createTag, getTags } from "../lib/api";
 
-export default function CreatePostModal({ onClose, onCreate }) {
+export default function CreatePostModal({ onClose, onCreate, canCreateNews = false }) {
   const [tags, setTags] = useState(["General"]);
 
   const [title, setTitle] = useState("");
   const [tag, setTag] = useState(tags[0] || "General");
   const [body, setBody] = useState("");
+  const [postType, setPostType] = useState("post");
+  const [newsReference, setNewsReference] = useState("");
 
   const [customTag, setCustomTag] = useState("");
   const [error, setError] = useState("");
@@ -87,7 +89,7 @@ export default function CreatePostModal({ onClose, onCreate }) {
     if (t.length < 5) return setError("Title must be at least 5 characters.");
     if (b.length < 10) return setError("Body must be at least 10 characters.");
 
-    onCreate({ title, tag, body, images });
+    onCreate({ title, tag, body, images, postType, newsReference });
   }
 
   return (
@@ -108,6 +110,16 @@ export default function CreatePostModal({ onClose, onCreate }) {
               autoFocus
             />
           </label>
+
+          {canCreateNews && (
+            <label className="field">
+              <span>Type</span>
+              <select className="field-select" value={postType} onChange={(e) => setPostType(e.target.value)}>
+                <option value="post">Post</option>
+                <option value="news">Editorial News</option>
+              </select>
+            </label>
+          )}
 
           <label className="field">
             <span>Tag</span>
@@ -130,6 +142,17 @@ export default function CreatePostModal({ onClose, onCreate }) {
               Add
             </button>
           </div>
+
+          {postType === "news" && (
+            <label className="field">
+              <span>Reference</span>
+              <input
+                value={newsReference}
+                onChange={(e) => setNewsReference(e.target.value)}
+                placeholder="Journal / article / source"
+              />
+            </label>
+          )}
 
           <label className="field">
             <span>Body</span>

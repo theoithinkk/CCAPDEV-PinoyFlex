@@ -1,15 +1,20 @@
 import { useState } from "react";
 
 export default function EditPostModal({ post, onClose, onSave }) {
+  const [title, setTitle] = useState(post.title);
   const [body, setBody] = useState(post.body);
+  const [newsReference, setNewsReference] = useState(post.newsReference || "");
   const [error, setError] = useState("");
+  const isNews = post.postType === "news";
 
   function submit(e) {
     e.preventDefault();
     if (body.trim().length < 10) return setError("Body must be at least 10 characters.");
     
     onSave(post.id, { 
+      title: title.trim(),
       body: body.trim(),
+      newsReference: isNews ? newsReference.trim() : "",
       lastEdited: Date.now() 
     });
     onClose();
@@ -24,9 +29,19 @@ export default function EditPostModal({ post, onClose, onSave }) {
         </div>
         <form className="modal-form" onSubmit={submit}>
           <div className="field">
-            <label>Title (Cannot be changed)</label>
-            <input value={post.title} disabled className="field-input disabled" style={{opacity: 0.7}} />
+            <label>Title{isNews ? "" : " (Cannot be changed"}</label>
+            <input value={isNews ? title : post.title} onChange={(e) => isNews && setTitle(e.target.value)} disabled={!isNews} className={"field-input" + (!isNews ? " disabled" : "")} style={!isNews ? {opacity: 0.7} : undefined} />
           </div>
+          
+          {isNews && (
+            <label className="field">
+              <span>Reference</span>
+              <input
+                value={newsReference}
+                onChange={(e) => setNewsReference(e.target.value)}
+              />
+            </label>
+          )}
           <label className="field">
             <span>Body</span>
             <textarea

@@ -165,6 +165,25 @@ export async function searchAll(query) {
   return data;
 }
 
+export async function getSearchMeta() {
+  return request("/api/search/meta");
+}
+
+export async function saveSearchHistory(query) {
+  return request("/api/search/history", {
+    method: "POST",
+    body: JSON.stringify({ query }),
+  });
+}
+
+export async function getFeaturedNews() {
+  return request("/api/news/featured");
+}
+
+export async function getNewsById(newsId) {
+  return request(`/api/news/${encodeURIComponent(newsId)}`);
+}
+
 export async function getTrendingFeed({ limit = 10, windowDays = 7 } = {}) {
   const data = await request(`/api/feed/trending?limit=${limit}&windowDays=${windowDays}`);
   return data.items || [];
