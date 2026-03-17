@@ -200,7 +200,7 @@ export default function Profile({
             ) : (
               <div className="profile-list">
                 {recentPosts.map((p) => (
-                  <a key={p.id} className="profile-item" href={`#/post/${p.id}`}>
+                  <a key={p.id} className="profile-item" href={p.postType === "news" ? `#/news/${p.id}` : `#/post/${p.id}`}>
                     <div className="profile-item-title">{p.title}</div>
                     <div className="profile-item-meta">
                       {timeAgo(p.createdAt)}{" "}
@@ -221,7 +221,7 @@ export default function Profile({
             ) : (
               <div className="profile-list">
                 {recentComments.map((c) => (
-                  <a key={c.id} className="profile-item" href={`#/post/${c.postId}`}>
+                  <a key={c.id} className="profile-item" href={c.postType === "news" ? `#/news/${c.postId}` : `#/post/${c.postId}`}>
                     <div className="profile-item-title">{c.postTitle}</div>
                     <div className="profile-item-body">{c.body}</div>
                     <div className="profile-item-meta">{timeAgo(c.createdAt)}</div>
@@ -272,7 +272,7 @@ export default function Profile({
           ) : (
             <div className="profile-list">
               {userPosts.map((p) => (
-                <a key={p.id} className="profile-item" href={`#/post/${p.id}`}>
+                <a key={p.id} className="profile-item" href={p.postType === "news" ? `#/news/${p.id}` : `#/post/${p.id}`}>
                   <div className="profile-item-title">{p.title}</div>
                   <div className="profile-item-meta">
                     {timeAgo(p.createdAt)}{" "}
@@ -295,7 +295,7 @@ export default function Profile({
           ) : (
             <div className="profile-list">
               {userComments.map((c) => (
-                <a key={c.id} className="profile-item" href={`#/post/${c.postId}`}>
+                <a key={c.id} className="profile-item" href={c.postType === "news" ? `#/news/${c.postId}` : `#/post/${c.postId}`}>
                   <div className="profile-item-title">{c.postTitle}</div>
                   <div className="profile-item-body">{c.body}</div>
                   <div className="profile-item-meta">{timeAgo(c.createdAt)}</div>
@@ -319,7 +319,7 @@ export default function Profile({
                 <a
                   key={`${item.type}-${item.postId}-${item.createdAt || 0}-${index}`}
                   className="profile-item"
-                  href={`#/post/${item.postId}`}
+                  href={item.postType === "news" ? `#/news/${item.postId}` : `#/post/${item.postId}`}
                 >
                   <div className="profile-item-title">{item.title || "Post interaction"}</div>
                   <div className="profile-item-body">

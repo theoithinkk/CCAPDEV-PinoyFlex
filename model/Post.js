@@ -41,6 +41,17 @@ const postSchema = new mongoose.Schema(
       type: Number,
       default: null,
     },
+    postType: {
+      type: String,
+      enum: ["post", "news"],
+      default: "post",
+    },
+    newsReference: {
+      type: String,
+      default: "",
+      trim: true,
+      maxlength: 600,
+    },
   },
   { timestamps: true }
 );

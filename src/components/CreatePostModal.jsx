@@ -1,18 +1,21 @@
 import { useEffect, useState } from "react";
 import { createTag, getTags } from "../lib/api";
 
-export default function CreatePostModal({ onClose, onCreate }) {
+export default function CreatePostModal({ onClose, onCreate, canCreateNews = false }) {
   const [tags, setTags] = useState(["General"]);
 
   const [title, setTitle] = useState("");
   const [tag, setTag] = useState(tags[0] || "General");
   const [body, setBody] = useState("");
+  const [postType, setPostType] = useState("post");
+  const [newsReference, setNewsReference] = useState("");
 
   const [customTag, setCustomTag] = useState("");
   const [error, setError] = useState("");
 
-  const [imageUrl, setImageUrl] = useState("");
   const [images, setImages] = useState([]);
+  const [imageFiles, setImageFiles] = useState([]);
+  const [uploading, setUploading] = useState(false);
 
   // Close on Escape
   useEffect(() => {
@@ -49,11 +52,32 @@ export default function CreatePostModal({ onClose, onCreate }) {
     }
   }, [tags, tag]);
 
-  function addImage() {
-    const url = imageUrl.trim();
-    if (!url) return;
-    setImages((prev) => [...prev, url]);
-    setImageUrl("");
+  async function handleFileChange(e) {
+    const files = Array.from(e.target.files);
+    if (!files.length) return;
+    if (images.length + files.length > 6) {
+      setError("Maximum 6 images per post.");
+      return;
+    }
+    setUploading(true);
+    setError("");
+    try {
+      const uploaded = await Promise.all(files.map(async (file) => {
+        const fd = new FormData();
+        fd.append("image", file);
+        const res = await fetch("/api/posts/upload-image", { method: "POST", credentials: "include", body: fd });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Upload failed.");
+        return { url: data.url, name: file.name };
+      }));
+      setImages((prev) => [...prev, ...uploaded.map(u => u.url)]);
+      setImageFiles((prev) => [...prev, ...uploaded.map(u => u.name)]);
+    } catch (err) {
+      setError(err.message || "Image upload failed.");
+    } finally {
+      setUploading(false);
+      e.target.value = ""; // reset file input so same file can be added again
+    }
   }
 
   function removeImage(idx) {
@@ -87,7 +111,7 @@ export default function CreatePostModal({ onClose, onCreate }) {
     if (t.length < 5) return setError("Title must be at least 5 characters.");
     if (b.length < 10) return setError("Body must be at least 10 characters.");
 
-    onCreate({ title, tag, body, images });
+    onCreate({ title, tag, body, images, postType, newsReference });
   }
 
   return (
@@ -108,6 +132,16 @@ export default function CreatePostModal({ onClose, onCreate }) {
               autoFocus
             />
           </label>
+
+          {canCreateNews && (
+            <label className="field">
+              <span>Type</span>
+              <select className="field-select" value={postType} onChange={(e) => setPostType(e.target.value)}>
+                <option value="post">Post</option>
+                <option value="news">Editorial News</option>
+              </select>
+            </label>
+          )}
 
           <label className="field">
             <span>Tag</span>
@@ -131,6 +165,17 @@ export default function CreatePostModal({ onClose, onCreate }) {
             </button>
           </div>
 
+          {postType === "news" && (
+            <label className="field">
+              <span>Reference</span>
+              <input
+                value={newsReference}
+                onChange={(e) => setNewsReference(e.target.value)}
+                placeholder="Journal / article / source"
+              />
+            </label>
+          )}
+
           <label className="field">
             <span>Body</span>
             <textarea
@@ -142,32 +187,19 @@ export default function CreatePostModal({ onClose, onCreate }) {
             />
           </label>
               <div className="field">
-                <label>Images (URL)</label>
-
-                <div className="img-addrow">
-                  <input
-                    value={imageUrl}
-                    onChange={(e) => setImageUrl(e.target.value)}
-                    placeholder="https://…"
-                  />
-                  <button className="btn btn-login" type="button" onClick={addImage}>
-                    Add
-                  </button>
-                </div>
-
+                <label>Images (up to 6)</label>
+                <input type="file" accept="image/*" multiple onChange={handleFileChange} disabled={uploading || images.length >= 6} />
+                {uploading && <div className="detail-muted" style={{ marginTop: "0.4rem" }}>Uploading...</div>}
                 {images.length > 0 && (
                   <div className="img-chiprow">
                     {images.map((url, i) => (
                       <div className="img-chip" key={url + i}>
-                        <span className="img-chip-text">Image {i + 1}</span>
-                        <button
-                          className="img-chip-x"
-                          type="button"
-                          onClick={() => removeImage(i)}
-                          aria-label="Remove image"
-                        >
-                          ✕
-                        </button>
+                        <img src={url} alt="" style={{ width: 32, height: 32, objectFit: "cover", borderRadius: 4, marginRight: 4 }} />
+                        <span className="img-chip-text">{imageFiles[i] || `Image ${i + 1}`}</span>
+                        <button className="img-chip-x" type="button" onClick={() => {
+                          setImages((prev) => prev.filter((_, idx) => idx !== i));
+                          setImageFiles((prev) => prev.filter((_, idx) => idx !== i));
+                        }}>✕</button>
                       </div>
                     ))}
                   </div>

@@ -15,6 +15,7 @@ import Badge from "../model/Badge.js";
 import VerificationRequest from "../model/VerificationRequest.js";
 import Notification from "../model/Notification.js";
 
+
 const router = express.Router();
 const verificationUploadsDir = path.join(process.cwd(), "uploads", "verifications");
 const avatarUploadsDir = path.join(process.cwd(), "uploads", "avatars");
@@ -41,6 +42,15 @@ function createUpload(destinationDir, maxSizeMb) {
 const upload = createUpload(verificationUploadsDir, 25);
 const avatarUpload = createUpload(avatarUploadsDir, 5);
 
+const postImagesDir = path.join(process.cwd(), "uploads", "posts");
+if (!fs.existsSync(postImagesDir)) fs.mkdirSync(postImagesDir, { recursive: true });
+const postImageUpload = createUpload(postImagesDir, 10); // 10MB max per image
+
+router.post("/posts/upload-image", requireAuth, postImageUpload.single("image"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file uploaded." });
+  return res.status(201).json({ url: `/uploads/posts/${req.file.filename}` });
+});
+
 const avatarFileTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
 const avatarUploadMiddleware = (req, res, next) => {
@@ -66,6 +76,10 @@ function requireAdmin(req, res, next) {
     return res.status(403).json({ error: "Admin access required." });
   }
   return next();
+}
+
+function canPublishNews(sessionUser) {
+  return Boolean(sessionUser && ["admin", "editorial"].includes(sessionUser.role));
 }
 
 function parsePagination(query, defaults = { page: 1, limit: 20, maxLimit: 100 }) {
@@ -134,6 +148,8 @@ function toPostJSON(post, commentCount = 0) {
     images: Array.isArray(post.images) ? post.images : [],
     commentCount,
     lastEdited: post.lastEdited || null,
+    postType: post.postType || "post",
+    newsReference: post.newsReference || "",
   };
 }
 
@@ -151,6 +167,16 @@ function toCommentJSON(comment) {
 
 const DEFAULT_TAGS = ["Form", "Meal Prep", "Physique", "Beginners", "General", "Success"];
 const ALLOWED_REPORT_TARGETS = new Set(["post", "comment", "user"]);
+
+async function getTrendingTopics(limit = 5) {
+  const rows = await Post.aggregate([
+    { $match: { postType: "post" } },
+    { $group: { _id: "$tag", count: { $sum: 1 }, latestAt: { $max: "$createdAt" } } },
+    { $sort: { count: -1, latestAt: -1, _id: 1 } },
+    { $limit: limit },
+  ]);
+  return rows.map((row) => row._id).filter(Boolean);
+}
 
 function toNotificationJSON(notification) {
   return {
@@ -259,7 +285,7 @@ router.post("/auth/logout", (req, res) => {
 router.get("/posts", async (req, res, next) => {
   try {
     const { page, limit, skip } = parsePagination(req.query, { page: 1, limit: 20, maxLimit: 100 });
-    const query = {};
+    const query = { postType: "post" };
     if (req.query.tag) query.tag = String(req.query.tag).trim();
 
     const [total, posts] = await Promise.all([
@@ -314,9 +340,15 @@ router.post("/posts", requireAuth, async (req, res, next) => {
     const images = Array.isArray(req.body.images)
       ? req.body.images.filter((img) => typeof img === "string").slice(0, 6)
       : [];
+    const requestedPostType = String(req.body.postType || "post").trim() === "news" ? "news" : "post";
+    const postType = requestedPostType === "news" && canPublishNews(req.session.user) ? "news" : "post";
+    const newsReference = typeof req.body.newsReference === "string" ? req.body.newsReference.trim().slice(0, 600) : "";
 
     if (title.length < 3 || body.length < 3) {
       return res.status(400).json({ error: "Title and body must both be at least 3 characters." });
+    }
+    if (requestedPostType === "news" && postType !== "news") {
+      return res.status(403).json({ error: "Only editorial or admin accounts can publis news." });
     }
 
     const created = await Post.create({
@@ -325,6 +357,8 @@ router.post("/posts", requireAuth, async (req, res, next) => {
       tag,
       images,
       author: activeUser._id,
+      postType,
+      newsReference: postType === "news" ? newsReference : "",
     });
     const populated = await Post.findById(created._id).populate("author", "username avatar");
     res.status(201).json({ post: toPostJSON(populated, 0) });
@@ -346,6 +380,11 @@ router.patch("/posts/:id", requireAuth, async (req, res, next) => {
     if (typeof req.body.body === "string") updates.body = req.body.body.trim();
     if (typeof req.body.tag === "string") updates.tag = req.body.tag.trim();
     if (Array.isArray(req.body.images)) updates.images = req.body.images.filter((img) => typeof img === "string");
+    if (typeof req.body.postType === "string" && canPublishNews(req.session.user)) {
+      updates.postType = req.body.postType.trim() === "news" ? "news" : "post";
+    }
+    if (typeof req.body.newsReference === "string") updates.newsReference = req.body.newsReference.trim().slice(0, 600);
+    if ((updates.postType || post.postType) !== "news") updates.newsReference = "";
     updates.lastEdited = Date.now();
 
     await Post.findByIdAndUpdate(post._id, updates);
@@ -510,10 +549,10 @@ router.get("/users/:username/profile", async (req, res, next) => {
     const comments = await Comment.find({ author: user._id })
       .sort({ createdAt: -1 })
       .lean();
-    const postTitleMap = new Map(
+    const postTypeMap = new Map(
       (await Post.find({ _id: { $in: [...new Set(comments.map((c) => c.post.toString()))] } }).lean()).map((p) => [
         p._id.toString(),
-        p.title,
+        { title: p.title, postType: p.postType || "post" },
       ])
     );
 
@@ -543,7 +582,8 @@ router.get("/users/:username/profile", async (req, res, next) => {
     );
     const serializedComments = comments.map((comment) => ({
       ...toCommentJSON(comment),
-      postTitle: postTitleMap.get(comment.post.toString()) || "Deleted post",
+      postTitle: postTypeMap.get(comment.post.toString())?.title || "Deleted post",
+      postType: postTypeMap.get(comment.post.toString())?.postType || "post",
     }));
 
     let history = [];
@@ -734,7 +774,7 @@ router.get("/feed/trending", async (req, res, next) => {
     const windowDays = Math.min(30, Math.max(1, Number(req.query.windowDays) || 7));
     const startAt = new Date(Date.now() - windowDays * 24 * 60 * 60 * 1000);
 
-    const posts = await Post.find({ createdAt: { $gte: startAt } })
+    const posts = await Post.find({ createdAt: { $gte: startAt }, postType: "post" })
       .sort({ createdAt: -1 })
       .populate("author", "username avatar")
       .lean();
@@ -776,7 +816,7 @@ router.get("/feed/explore", async (req, res, next) => {
   try {
     const { page, limit, skip } = parsePagination(req.query, { page: 1, limit: 20, maxLimit: 100 });
     const tag = typeof req.query.tag === "string" ? req.query.tag.trim() : "";
-    const query = tag ? { tag } : {};
+    const query = tag ? { tag, postType: "post" } : { postType: "post" };
 
     const [total, posts] = await Promise.all([
       Post.countDocuments(query),
@@ -798,7 +838,7 @@ router.get("/feed/explore", async (req, res, next) => {
     const startOfDay = new Date();
     startOfDay.setHours(0, 0, 0, 0);
     const todaysByTag = await Post.aggregate([
-      { $match: { createdAt: { $gte: startOfDay } } },
+      { $match: { createdAt: { $gte: startOfDay }, postType: "post" } },
       { $group: { _id: "$tag", count: { $sum: 1 } } },
     ]);
 
@@ -820,6 +860,63 @@ router.get("/feed/explore", async (req, res, next) => {
         hasMore: skip + posts.length < total,
       },
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/search/meta", async (req, res, next) => {
+  try {
+    const trendingTopics = await getTrendingTopics(5);
+    let recentSearches = [];
+    if (req.session.user?.id) {
+      const user = await User.findById(req.session.user.id).lean();
+      recentSearches = Array.isArray(user?.recentSearches) ? user.recentSearches.slice(0, 5) : [];
+    }
+    res.json({ trendingTopics, recentSearches });
+  } catch (error) {
+    next(error);
+  }
+})
+
+router.post("/search/history", requireAuth, async (req, res, next) => {
+  try {
+    const query = typeof req.body.query === "string" ? req.body.query.trim() : "";
+    if (!query) return res.status(400).json({ error: "Search query is required." });
+
+    const user = await User.findById(req.session.user.id);
+    if (!user) return res.status(404).json({ error: "User not found." });
+
+    const filtered = Array.isArray(user.recentSearches) ? user.recentSearches.filter((item) => item.toLowerCase() !== query.toLowerCase()) : [];
+    const deduped = [query, ...filtered].slice(0, 5);
+    user.recentSearches = deduped;
+    await user.save();
+
+    res.json({ recentSearches: deduped });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/news/featured", async (req, res, next) => {
+  try {
+    const post = await Post.findOne({ postType: "news" }).sort({ createdAt: -1 }).populate("author", "username avatar");
+    if (!post) return res.json({ news: null });
+
+    const commentCount = await Comment.countDocuments({ post: post._id });
+    res.json({ news: toPostJSON(post, commentCount) });
+  } catch (error) {
+    next(error);
+  }
+});
+
+router.get("/news/:id", async (req, res, next) => {
+  try {
+    const post = await Post.findOne({ _id: req.params.id, postType: "news" }).populate("author", "username avatar" );
+    if (!post) return res.status(404).json({ error: "News not found."});
+
+    const commentCount = await Comment.countDocuments({ post: post._id });
+    res.json({ news: toPostJSON(post, commentCount) });
   } catch (error) {
     next(error);
   }

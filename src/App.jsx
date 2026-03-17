@@ -24,6 +24,10 @@ import {
   getUserProfile,
   markAllNotificationsRead,
   searchAll,
+  getSearchMeta,
+  saveSearchHistory,
+  getFeaturedNews,
+  getNewsById,
   submitReport as submitUserReport,
   unfollowUser,
   getWorkoutLogs,
@@ -55,19 +59,6 @@ const adminGetVerifications = (page = 1, status = "") => adminRequest(`/api/admi
 const adminUpdateVerification = (id, payload) => adminRequest(`/api/admin/verifications/${id}`, { method: "PATCH", body: JSON.stringify(payload) });
 
 const tagColorCache = new Map();
-const FEATURED_NEWS_ROUTE = "#/news/periodized-upper-lower-brief";
-const FEATURED_NEWS_POST = {
-  id: "news_featured_2026_01",
-  title: "Push Pull Legs no longer default for intermediates? New 12-week trial says periodized upper/lower may edge ahead",
-  author: "PinoyFlex Editorial",
-  createdAt: new Date("2026-01-25T09:00:00+08:00").getTime(),
-  tag: "Research Brief",
-  votes: 184,
-  body:
-    "A controlled 12-week intervention tracked 96 intermediate lifters across two commonly used split models: a classic push/pull/legs routine and a periodized upper/lower schedule.\n\nThe researchers reported that both groups improved lean mass, but the periodized upper/lower group showed stronger average hypertrophy markers in the quads and upper back while maintaining similar strength progression. Weekly fatigue scores were also slightly lower in the periodized group.\n\nThe authors note that this does not make PPL obsolete. Their conclusion focuses on workload management and progression quality for intermediates with limited recovery bandwidth.\n\nPractical takeaway: if progression has stalled on a static split, a periodized upper/lower setup may offer a better stimulus-to-fatigue ratio without increasing training days.",
-};
-const FEATURED_NEWS_REFERENCE =
-  "M. Reyes, J. Dela Cruz, T. Navarro (2026). Split Strategy and Hypertrophy Outcomes in Intermediate Lifters. Journal of Applied Strength Science, 14(2), 77-91.";
 
 function hslToRgb(h, s, l) {
   const c = (1 - Math.abs(2 * l - 1)) * s;
@@ -548,14 +539,11 @@ export default function App() {
   const [searchLoading, setSearchLoading] = useState(false);
   const [searchResults, setSearchResults] = useState({ posts: [], users: [], tags: [] });
   const [searchResultsLoading, setSearchResultsLoading] = useState(false);
-  const recentSearches = useMemo(
-    () => ["Body recomposition", "Meal prep on a budget", "5x5 program", "Calisthenics PH"],
-    []
-  );
-  const trendingTopics = useMemo(
-    () => ["#BalikGym", "#DirtyBulk", "#UpperLower", "#HomeWorkout", "#CutSeason"],
-    []
-  );
+  const [recentSearches, setRecentSearches] = useState([]);
+  const [trendingTopics, setTrendingTopics] = useState([]);
+  const [featuredNews, setFeaturedNews] = useState(null);
+  const [activeNews, setActiveNews] = useState(null);
+
 
   const normalizedQuery = searchValue.trim().toLowerCase();
   const filteredRecent = normalizedQuery
@@ -564,6 +552,38 @@ export default function App() {
   const filteredTrending = normalizedQuery
     ? trendingTopics.filter((item) => item.toLowerCase().includes(normalizedQuery))
     : trendingTopics;
+
+  async function refreshSearchMeta() {
+    try {
+      const data = await getSearchMeta();
+      setTrendingTopics(data?.trendingTopics || []);
+      setRecentSearches(data?.recentSearches || []);
+    } catch {
+      setTrendingTopics([]);
+      setRecentSearches([]);
+    }
+  }
+
+  async function persistRecentSearch(query) {
+    const cleaned = (query || "").trim();
+    if (!cleaned || !session) return;
+    try {
+      const data = await saveSearchHistory(cleaned);
+      setRecentSearches(data?.recentSearches || []);
+    } catch {
+      //nothing
+    }
+  }
+
+  function goToSearch(query) {
+    const cleaned = (query || "").trim();
+    if (!cleaned) return;
+    setSearchValue(cleaned);
+    setSearchOpen(false);
+    persistRecentSearch(cleaned);
+    window.location.hash = `#/search?q=${encodeURIComponent(cleaned)}`;
+  }
+
 
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationsData, setNotificationsData] = useState([]);
@@ -676,6 +696,7 @@ export default function App() {
 
   // -- Parse Route Params --
   const activePostId = parsePostIdFromHash(route);
+  const activeNewsId = parseNewsIdFromHash(route);
   const highlightCommentId = parseHighlightCommentFromHash(route);
   const activePost = activePostId ? posts.find((p) => p.id === activePostId) : null;
   
@@ -720,6 +741,43 @@ export default function App() {
       mounted = false;
     };
   }, [route, searchQuery]);
+
+  useEffect(() => {
+    refreshSearchMeta();
+  }, [session?.id, posts.length]);
+
+  useEffect(() => {
+    let mounted = true;
+    getFeaturedNews()
+      .then((data) => {
+        if (mounted) setFeaturedNews(data.news || null);
+      })
+      .catch (() => {
+        if (mounted) setFeaturedNews(null);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!activeNewsId) {
+      setActiveNews(null);
+      return;
+    }
+    let mounted = true;
+    getNewsById(activeNewsId)
+      .then((data) => {
+        if (mounted) setActiveNews(data.news || null);
+      })
+      .catch (() => {
+        if (mounted) setActiveNews(null);
+      });
+    return () => {
+      mounted = false;
+    };
+    
+  }, [activeNewsId]);
 
   // -- Data Loading --
   useEffect(() => {
@@ -845,15 +903,22 @@ export default function App() {
     setCreateOpen(true);
   }
 
-  async function handleCreate({ title, tag, body, images }) {
+  async function handleCreate({ title, tag, body, images, postType, newsReference }) {
     try {
       const created = await createPost({
         title: title.trim(),
         tag,
         body: body.trim(),
         images: images || [],
+        postType,
+        newsReference: newsReference || "",
       });
-      setPosts((prev) => [created, ...prev]);
+      if (created.postType === "news") {
+        setFeaturedNews(created);
+      } else {
+        setPosts((prev) => [created, ...prev]);
+        refreshSearchMeta();
+      }
       setCreateOpen(false);
     } catch (err) {
       setToast(err?.message || "Failed to create post.");
@@ -868,7 +933,15 @@ export default function App() {
   async function saveEditedPost(postId, updates) {
     try {
       const updated = await editPost(postId, updates);
-      setPosts((prev) => prev.map((post) => (post.id === postId ? updated : post)));
+      if (updated.postType === "news") {
+        if (featuredNews?.id === postId) {
+          getFeaturedNews().then(data => setFeaturedNews(data.news || null)).catch(() => setFeaturedNews(null));
+        }
+        setActiveNews((prev) => (prev?.id === postId ? updated : prev));
+      } else {
+        setPosts((prev) => prev.map((post) => (post.id === postId ? updated : post)));
+        refreshSearchMeta();
+      }
       setEditPostData(null);
     } catch (err) {
       setToast(err?.message || "Failed to update post.");
@@ -888,6 +961,7 @@ export default function App() {
     try {
       const updated = await votePost(postId, direction);
       setPosts((prev) => prev.map((post) => (post.id === postId ? updated : post)));
+      setActiveNews((prev) => (prev?.id === postId ? updated : prev));
     } catch (err) {
       setToast(err?.message || "Failed to vote.");
     }
@@ -1096,8 +1170,7 @@ export default function App() {
                 onFocus={() => setSearchOpen(true)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") {
-                     setSearchOpen(false);
-                     window.location.hash = `#/search?q=${encodeURIComponent(searchValue)}`;
+                    goToSearch(searchValue);
                   }
                   if (e.key === "Escape") setSearchOpen(false);
                 }}
@@ -1136,8 +1209,7 @@ export default function App() {
                         className="search-item"
                         type="button"
                         onClick={() => {
-                          setSearchOpen(false);
-                          window.location.hash = `#/search?q=${encodeURIComponent(tag)}`;
+                          goToSearch(tag);
                         }}
                       >
                         <span className="search-item-icon">#</span>
@@ -1157,9 +1229,7 @@ export default function App() {
                         className="search-item"
                         type="button"
                         onClick={() => {
-                          setSearchValue(item);
-                          setSearchOpen(false);
-                          window.location.hash = `#/search?q=${encodeURIComponent(item)}`;
+                          goToSearch(item);
                         }}
                       >
                         <span className="search-item-icon">#</span>
@@ -1180,9 +1250,7 @@ export default function App() {
                         className="search-item"
                         type="button"
                         onClick={() => {
-                          setSearchValue(item);
-                          setSearchOpen(false);
-                          window.location.hash = `#/search?q=${encodeURIComponent(item)}`;
+                          goToSearch(item);
                         }}
                       >
                         <span className="search-item-icon">R</span>
@@ -1263,24 +1331,32 @@ export default function App() {
           <aside className="panel panel-left">
             <div className="block block-news">
               <h2>Current Fitness News</h2>
-              <div className="news-priority">2/11/2026</div>
-              <a className="news-forum-link" href={FEATURED_NEWS_ROUTE}>
-                <div className="news-forum-head">
-                  <span className="news-forum-pill">Forum Brief</span>
-                  <span className="news-forum-meta">@pinoyflex_editorial | 2d ago</span>
-                </div>
-                <div className="news-link">
-                  Push Pull Legs Vaulted?
-                </div>
-                <p className="news-summary">
-                  A 12-week controlled trial found stronger average growth outcomes from a periodized upper/lower split than a standard PPL setup in intermediate lifters.
-                  <span className="news-readmore"> Read more...</span>
-                </p>
-                <div className="news-citation">
-                  Reference: Journal of Applied Strength Science, Vol. 14(2), pp. 77-91.
-                </div>
-                <div className="news-cta">Open full breakdown</div>
-              </a>
+              {featuredNews ? (
+                <>
+                  <div className="news-priority">{new Date(featuredNews.createdAt).toLocaleDateString()}</div>
+                  <a className="news-forum-link" href={`#/news/${featuredNews.id}`}>
+                    <div className="news-forum-head">
+                      <span className="news-forum-pill">Editorial News</span>
+                      <span className="news-forum-meta">@{featuredNews.author} | {timeAgo(featuredNews.createdAt)}</span>
+                    </div>
+                    <div className="news-link">
+                      {featuredNews.title}
+                    </div>
+                    <p className="news-summary">
+                      {featuredNews.body.slice(0, 180)}
+                      <span className="news-readmore"> Read more...</span>
+                    </p>
+                    {featuredNews.newsReference && (
+                      <div className="news-citation">
+                        Reference: {featuredNews.newsReference}
+                      </div>
+                    )}
+                    <div className="news-cta">Open full breakdown</div>
+                  </a>
+                </> 
+              ) : (
+                <div className="search-empty">No editorial news has been published yet.</div>
+              )}
             </div>
 
             <div className="block block-categories">
@@ -1436,7 +1512,26 @@ export default function App() {
                 </div>
                 )
               ) : route.startsWith("#/news") ? (
-                <NewsDetailPost news={FEATURED_NEWS_POST} reference={FEATURED_NEWS_REFERENCE} />
+                  <NewsDetailPost
+                  news={activeNews}
+                  session={session}
+                  isLoggedIn={isLoggedIn}
+                  onVote={handleVote}
+                  openLogin={openLogin}
+                  onEditNews={() => handleEditPost(activeNews)}
+                  onDeleteNews={async (postId) => {
+                    try {
+                      await removePost(postId);
+                      setActiveNews(null);
+                      if (featuredNews?.id === postId) {
+                        getFeaturedNews().then(data => setFeaturedNews(data.news || null)).catch(() => setFeaturedNews(null));
+                      }
+                      window.location.hash = "#/";
+                    } catch (err) {
+                      setToast(err?.message || "Failed to delete news.");
+                    }
+                  }}
+                />
               ) : route === "#/log-calendar" ? (
                 <WorkoutLogCalendar
                   logs={workoutLogs}
@@ -1480,6 +1575,7 @@ export default function App() {
                               userVote={getCurrentUserVote(p, session)}
                               onVote={handleVote}
                               onReport={(target) => openReportModal(target)}
+                              postType={p.postType}
                             />
                           ))
                         )}
@@ -1785,6 +1881,7 @@ export default function App() {
         <CreatePostModal
           onClose={() => setCreateOpen(false)}
           onCreate={handleCreate}
+          canCreateNews={["admin", "editorial"].includes(session?.role)}
         />
       )}
       
@@ -1903,42 +2000,93 @@ function ReportModal({ target, onClose, onSubmit }) {
   );
 }
 
-function NewsDetailPost({ news, reference }) {
+function NewsDetailPost({ news, session, onEditNews, onDeleteNews, isLoggedIn, onVote, openLogin}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  if (!news) {
+    return (
+      <div className="post-detail">
+        <a className="btn btn-secondary" href="#/">
+          Back
+        </a>
+        <div className="detail-card news-detail-card">
+          <div className="detail-muted">News not found.</div>
+        </div>
+      </div>
+    );
+  }
+
+  const canEditNews = session && (session.username === news.author || session.id === news.authorId || ["admin", "editorial"].includes(session.role));
+  const voteMap = news.voteByUser || {};
+  const myVote = session ? (voteMap[session.id] ?? voteMap[session.username] ?? 0) : 0;
+
   return (
     <div className="post-detail">
-      <a className="btn btn-secondary" href="#/">
-        Back
-      </a>
+      <a className="btn btn-secondary" href="#/" style={{ marginBottom: "1rem", display: "inline-block" }}>← Back</a>
 
       <div className="detail-card news-detail-card">
         <div className="detail-head">
           <h2 className="detail-title">{news.title}</h2>
-          <span className="detail-tag">{news.tag}</span>
+          <div className="detail-actions">
+            {canEditNews && (
+              <button className="btn-edit-action" type="button" onClick={onEditNews}>Edit News</button>
+            )}
+            <div style={{ position: "relative" }}>
+              <button className="detail-more" type="button" aria-label="News options"
+                aria-haspopup="menu" aria-expanded={menuOpen}
+                onClick={() => setMenuOpen((v) => !v)}>⋯</button>
+              <div className={"detail-menu" + (menuOpen ? " show" : "")} role="menu">
+                {canEditNews && (
+                  <button className="detail-menu-item danger" type="button"
+                    onClick={() => { setMenuOpen(false); setConfirmDelete(true); }}>
+                    Delete News
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="detail-meta">
           by <strong>{news.author}</strong> · {timeAgo(news.createdAt)}
-          <span className="detail-tag">{news.votes} upvotes</span>
           <span className="detail-tag">Research Digest</span>
+        </div>
+
+        <div className="detail-votes" style={{ width: "fit-content" }}>
+          <button className={"vote-btn upvote" + (myVote === 1 ? " is-active" : "")} type="button"
+            onClick={() => isLoggedIn ? onVote?.(news.id, 1) : openLogin?.()}>↑</button>
+          <span className="vote-count">{news.votes ?? 0}</span>
+          <button className={"vote-btn downvote" + (myVote === -1 ? " is-active" : "")} type="button"
+            onClick={() => isLoggedIn ? onVote?.(news.id, -1) : openLogin?.()}>↓</button>
         </div>
 
         <div className="detail-body">{news.body}</div>
 
-        <div className="news-detail-section">
-          <h3 className="detail-subtitle">Key points</h3>
-          <ul className="news-detail-points">
-            <li>Hypertrophy results were slightly stronger in the periodized upper/lower group.</li>
-            <li>Strength gains were similar across both split models by week 12.</li>
-            <li>Participants on periodized programming reported lower average fatigue.</li>
-            <li>Authors recommend split choice based on recoverability and progression quality.</li>
-          </ul>
-        </div>
+        {(news.images || []).length > 0 && <PostMedia images={news.images} />}
 
-        <div className="news-detail-reference">
-          <strong>Reference (mock): </strong>
-          {reference}
-        </div>
+        {news.newsReference && (
+          <div className="news-detail-reference">
+            <strong>Reference: </strong>
+            {news.newsReference}
+          </div>
+        )}
       </div>
+
+      {confirmDelete && (
+        <div className="modal-backdrop" onMouseDown={() => setConfirmDelete(false)}>
+          <div className="modal modal-confirm" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <h2 className="modal-title">Delete news post?</h2>
+              <button className="modal-x" onClick={() => setConfirmDelete(false)}>✕</button>
+            </div>
+            <p className="modal-confirm-text">This will permanently delete this news post.</p>
+            <div className="modal-confirm-actions">
+              <button className="btn btn-secondary" onClick={() => setConfirmDelete(false)}>Cancel</button>
+              <button className="btn btn-danger" onClick={() => { setConfirmDelete(false); onDeleteNews?.(news.id); }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2089,9 +2237,10 @@ function PostCard({
   images = [],
   onVote,
   onReport,
+  postType = "post",
 }) {
   const timeText = createdAt ? timeAgo(createdAt) : meta;
-  const postHref = `#/post/${id}`;
+  const postHref = postType === "news" ? `#/news/${id}` : `#/post/${id}`;
   const [menuOpen, setMenuOpen] = useState(false);
   const [menuDir, setMenuDir] = useState("up");
   const menuRef = useRef(null);
@@ -2625,6 +2774,11 @@ function getRoute() {
 
 function parsePostIdFromHash(hash) {
   const m = hash.match(/^#\/post\/([^?]+)/);
+  return m ? m[1] : null;
+}
+
+function parseNewsIdFromHash(hash) {
+  const m = hash.match(/^#\/news\/([^?]+)/);
   return m ? m[1] : null;
 }
 
