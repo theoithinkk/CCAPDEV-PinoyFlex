@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title><%= title %></title>
+  <link rel="stylesheet" href="/css/styles.css" />
+</head>
+<body>
+  <header class="nav">
+    <div class="container">
+      <a href="/">PinoyFlex</a>
+      <a href="/posts">Posts</a>
+      <a href="/users">Users</a>
+      <% if (currentUser) { %><a href="/posts/new">Create Post</a><a href="/users/me">My Profile</a><% } %>
+      <span class="spacer"></span>
+      <% if (currentUser) { %>
+        <span>@<%= currentUser.username %></span>
+        <form method="POST" action="/auth/logout"><button type="submit">Logout</button></form>
+      <% } else { %>
+        <a href="/auth/login">Login</a>
+        <a href="/auth/register">Register</a>
+      <% } %>
+    </div>
+  </header>
+
+  <main class="container">
+    <article class="card">
+      <h1><%= post.title %></h1>
+      <p class="muted">Tag: <%= post.tag %> | Votes: <%= post.votes %></p>
+      <p class="muted">By <%= post.author?.username || "unknown" %> on <%= new Date(post.createdAt).toLocaleString() %></p>
+      <p><%= post.body %></p>
+
+      <% if (currentUser) { %>
+        <form method="POST" action="/posts/<%= post._id %>/vote" class="inline">
+          <input type="hidden" name="direction" value="1" />
+          <button class="btn" type="submit">Upvote</button>
+        </form>
+        <form method="POST" action="/posts/<%= post._id %>/vote" class="inline">
+          <input type="hidden" name="direction" value="-1" />
+          <button class="btn secondary" type="submit">Downvote</button>
+        </form>
+      <% } %>
+    </article>
+
+    <section class="card">
+      <h2>Comments (<%= comments.length %>)</h2>
+      <% if (currentUser) { %>
+        <form method="POST" action="/posts/<%= post._id %>/comments">
+          <label>Add Comment
+            <textarea name="body" rows="3" required></textarea>
+          </label>
+          <button class="btn" type="submit">Post Comment</button>
+        </form>
+      <% } else { %>
+        <p><a class="btn" href="/auth/login">Login to Comment</a></p>
+      <% } %>
+
+      <div class="list">
+        <% comments.forEach(function(comment) { %>
+          <div>
+            <p><%= comment.body %></p>
+            <p class="muted">By <%= comment.author?.username || "unknown" %> on <%= new Date(comment.createdAt).toLocaleString() %></p>
+          </div>
+        <% }) %>
+      </div>
+    </section>
+  </main>
+</body>
+</html>

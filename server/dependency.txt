@@ -1,0 +1,5 @@
+Install dependencies with 'server' as the active directory:
+npm install express mongoose cors dotenv
+
+Incase of vulnerabilities:
+npm audit fix
