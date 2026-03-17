@@ -347,7 +347,7 @@ export async function seedDatabase(options = {}) {
   const seedVerification = await VerificationRequest.create({
     user: userMap.get("marc")._id,
     badgeKey: "bodyweight-pullup-20",
-    proofUrl: "/uploads/verifications/sample-proof.jpg",
+    proofUrl: "/uploads/verifications/sample-proof.mp4",
     note: "Sample verification request for local dev.",
     status: "pending",
   });

@@ -934,7 +934,9 @@ export default function App() {
     try {
       const updated = await editPost(postId, updates);
       if (updated.postType === "news") {
-        setFeaturedNews((prev) => (prev?.id === postId ? updated : prev));
+        if (featuredNews?.id === postId) {
+          getFeaturedNews().then(data => setFeaturedNews(data.news || null)).catch(() => setFeaturedNews(null));
+        }
         setActiveNews((prev) => (prev?.id === postId ? updated : prev));
       } else {
         setPosts((prev) => prev.map((post) => (post.id === postId ? updated : post)));
@@ -959,6 +961,7 @@ export default function App() {
     try {
       const updated = await votePost(postId, direction);
       setPosts((prev) => prev.map((post) => (post.id === postId ? updated : post)));
+      setActiveNews((prev) => (prev?.id === postId ? updated : prev));
     } catch (err) {
       setToast(err?.message || "Failed to vote.");
     }
@@ -1509,7 +1512,26 @@ export default function App() {
                 </div>
                 )
               ) : route.startsWith("#/news") ? (
-                <NewsDetailPost news={activeNews} session={session} onEditNews={() => activeNews && handleEditPost(activeNews)} />
+                  <NewsDetailPost
+                  news={activeNews}
+                  session={session}
+                  isLoggedIn={isLoggedIn}
+                  onVote={handleVote}
+                  openLogin={openLogin}
+                  onEditNews={() => handleEditPost(activeNews)}
+                  onDeleteNews={async (postId) => {
+                    try {
+                      await removePost(postId);
+                      setActiveNews(null);
+                      if (featuredNews?.id === postId) {
+                        getFeaturedNews().then(data => setFeaturedNews(data.news || null)).catch(() => setFeaturedNews(null));
+                      }
+                      window.location.hash = "#/";
+                    } catch (err) {
+                      setToast(err?.message || "Failed to delete news.");
+                    }
+                  }}
+                />
               ) : route === "#/log-calendar" ? (
                 <WorkoutLogCalendar
                   logs={workoutLogs}
@@ -1978,7 +2000,9 @@ function ReportModal({ target, onClose, onSubmit }) {
   );
 }
 
-function NewsDetailPost({ news, session, onEditNews }) {
+function NewsDetailPost({ news, session, onEditNews, onDeleteNews, isLoggedIn, onVote, openLogin}) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
   if (!news) {
     return (
       <div className="post-detail">
@@ -1993,34 +2017,52 @@ function NewsDetailPost({ news, session, onEditNews }) {
   }
 
   const canEditNews = session && (session.username === news.author || session.id === news.authorId || ["admin", "editorial"].includes(session.role));
+  const voteMap = news.voteByUser || {};
+  const myVote = session ? (voteMap[session.id] ?? voteMap[session.username] ?? 0) : 0;
 
   return (
     <div className="post-detail">
-      <a className="btn btn-secondary" href="#/">
-        Back
-      </a>
+      <a className="btn btn-secondary" href="#/" style={{ marginBottom: "1rem", display: "inline-block" }}>← Back</a>
 
       <div className="detail-card news-detail-card">
         <div className="detail-head">
           <h2 className="detail-title">{news.title}</h2>
-          <span className="detail-tag">{news.tag}</span>
+          <div className="detail-actions">
+            {canEditNews && (
+              <button className="btn-edit-action" type="button" onClick={onEditNews}>Edit News</button>
+            )}
+            <div style={{ position: "relative" }}>
+              <button className="detail-more" type="button" aria-label="News options"
+                aria-haspopup="menu" aria-expanded={menuOpen}
+                onClick={() => setMenuOpen((v) => !v)}>⋯</button>
+              <div className={"detail-menu" + (menuOpen ? " show" : "")} role="menu">
+                {canEditNews && (
+                  <button className="detail-menu-item danger" type="button"
+                    onClick={() => { setMenuOpen(false); setConfirmDelete(true); }}>
+                    Delete News
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
         </div>
 
         <div className="detail-meta">
-          by <strong>{news.author}</strong> . {timeAgo(news.createdAt)}
-          <span className="detail-tag">{news.votes} upvotes</span>
-          <span className="detail-tag">Editorial News</span>
+          by <strong>{news.author}</strong> · {timeAgo(news.createdAt)}
+          <span className="detail-tag">Research Digest</span>
         </div>
 
-        {canEditNews && (
-          <div style={{ marginBottom: "1rem" }}>
-            <button className="btn btn-secondary" type="button" onClick={onEditNews}>
-              Edit News
-            </button>
-          </div>
-        )}
+        <div className="detail-votes" style={{ width: "fit-content" }}>
+          <button className={"vote-btn upvote" + (myVote === 1 ? " is-active" : "")} type="button"
+            onClick={() => isLoggedIn ? onVote?.(news.id, 1) : openLogin?.()}>↑</button>
+          <span className="vote-count">{news.votes ?? 0}</span>
+          <button className={"vote-btn downvote" + (myVote === -1 ? " is-active" : "")} type="button"
+            onClick={() => isLoggedIn ? onVote?.(news.id, -1) : openLogin?.()}>↓</button>
+        </div>
 
         <div className="detail-body">{news.body}</div>
+
+        {(news.images || []).length > 0 && <PostMedia images={news.images} />}
 
         {news.newsReference && (
           <div className="news-detail-reference">
@@ -2029,9 +2071,25 @@ function NewsDetailPost({ news, session, onEditNews }) {
           </div>
         )}
       </div>
+
+      {confirmDelete && (
+        <div className="modal-backdrop" onMouseDown={() => setConfirmDelete(false)}>
+          <div className="modal modal-confirm" onMouseDown={(e) => e.stopPropagation()}>
+            <div className="modal-head">
+              <h2 className="modal-title">Delete news post?</h2>
+              <button className="modal-x" onClick={() => setConfirmDelete(false)}>✕</button>
+            </div>
+            <p className="modal-confirm-text">This will permanently delete this news post.</p>
+            <div className="modal-confirm-actions">
+              <button className="btn btn-secondary" onClick={() => setConfirmDelete(false)}>Cancel</button>
+              <button className="btn btn-danger" onClick={() => { setConfirmDelete(false); onDeleteNews?.(news.id); }}>Delete</button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
-} 
+}
 
 function WorkoutLogCalendar({ logs, isLoggedIn, onRequireLogin, onSaveEntry }) {
   const [monthStart, setMonthStart] = useState(() => startOfMonth(new Date()));

@@ -15,6 +15,7 @@ import Badge from "../model/Badge.js";
 import VerificationRequest from "../model/VerificationRequest.js";
 import Notification from "../model/Notification.js";
 
+
 const router = express.Router();
 const verificationUploadsDir = path.join(process.cwd(), "uploads", "verifications");
 const avatarUploadsDir = path.join(process.cwd(), "uploads", "avatars");
@@ -40,6 +41,15 @@ function createUpload(destinationDir, maxSizeMb) {
 
 const upload = createUpload(verificationUploadsDir, 25);
 const avatarUpload = createUpload(avatarUploadsDir, 5);
+
+const postImagesDir = path.join(process.cwd(), "uploads", "posts");
+if (!fs.existsSync(postImagesDir)) fs.mkdirSync(postImagesDir, { recursive: true });
+const postImageUpload = createUpload(postImagesDir, 10); // 10MB max per image
+
+router.post("/posts/upload-image", requireAuth, postImageUpload.single("image"), (req, res) => {
+  if (!req.file) return res.status(400).json({ error: "No file uploaded." });
+  return res.status(201).json({ url: `/uploads/posts/${req.file.filename}` });
+});
 
 const avatarFileTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
@@ -539,10 +549,10 @@ router.get("/users/:username/profile", async (req, res, next) => {
     const comments = await Comment.find({ author: user._id })
       .sort({ createdAt: -1 })
       .lean();
-    const postTitleMap = new Map(
+    const postTypeMap = new Map(
       (await Post.find({ _id: { $in: [...new Set(comments.map((c) => c.post.toString()))] } }).lean()).map((p) => [
         p._id.toString(),
-        p.title,
+        { title: p.title, postType: p.postType || "post" },
       ])
     );
 
@@ -572,7 +582,8 @@ router.get("/users/:username/profile", async (req, res, next) => {
     );
     const serializedComments = comments.map((comment) => ({
       ...toCommentJSON(comment),
-      postTitle: postTitleMap.get(comment.post.toString()) || "Deleted post",
+      postTitle: postTypeMap.get(comment.post.toString())?.title || "Deleted post",
+      postType: postTypeMap.get(comment.post.toString())?.postType || "post",
     }));
 
     let history = [];

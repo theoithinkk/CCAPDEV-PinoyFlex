@@ -1093,11 +1093,12 @@ body {
 
 .detail-body {
   white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: break-word;
   line-height: 1.7;
   font-size: 16px;
   color: #222;
 }
-
 .detail-actions {
   position: relative;
   display: flex;
