@@ -171,38 +171,19 @@ export default function Profile({
                   const description = isObject ? b.description : "";
 
                   return (
-                    <div key={badgeKey} style={{ textAlign: "center", width: "80px", display: "flex", flexDirection: "column", alignItems: "center" }} title={description}>
+                    <div key={badgeKey} className="profile-badge" title={description}>
                       {imageUrl ? (
                         <img
                           src={imageUrl}
                           alt={badgeName}
-                          style={{
-                            width: "64px",
-                            height: "64px",
-                            borderRadius: "16px",
-                            objectFit: "cover",
-                            border: "2px solid var(--border)",
-                            boxShadow: "0 4px 6px rgba(0,0,0,0.05)",
-                            backgroundColor: "var(--bg-primary)"
-                          }}
+                          className="profile-badge-image"
                         />
                       ) : (
-                        <div style={{
-                          width: "64px",
-                          height: "64px",
-                          borderRadius: "16px",
-                          background: "var(--bg-tertiary)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: "0.75rem",
-                          color: "var(--text-muted)",
-                          border: "2px dashed var(--border)"
-                        }}>
+                        <div className="profile-badge-fallback">
                           No Img
                         </div>
                       )}
-                      <div style={{ fontSize: "0.8rem", marginTop: "0.5rem", color: "var(--text-primary)", fontWeight: "600", lineHeight: "1.2", wordBreak: "break-word" }}>
+                      <div className="profile-badge-label">
                         {badgeName}
                       </div>
                     </div>

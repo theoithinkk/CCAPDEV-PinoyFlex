@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { createTag, getTags } from "../lib/api";
+import { createTag, getTags, uploadPostImage } from "../lib/api";
 
 export default function CreatePostModal({ onClose, onCreate, canCreateNews = false }) {
   const [tags, setTags] = useState(["General"]);
@@ -63,12 +63,8 @@ export default function CreatePostModal({ onClose, onCreate, canCreateNews = fal
     setError("");
     try {
       const uploaded = await Promise.all(files.map(async (file) => {
-        const fd = new FormData();
-        fd.append("image", file);
-        const res = await fetch("/api/posts/upload-image", { method: "POST", credentials: "include", body: fd });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Upload failed.");
-        return { url: data.url, name: file.name };
+        const uploadedFile = await uploadPostImage(file);
+        return { url: uploadedFile.url, name: file.name };
       }));
       setImages((prev) => [...prev, ...uploaded.map(u => u.url)]);
       setImageFiles((prev) => [...prev, ...uploaded.map(u => u.name)]);
@@ -78,10 +74,6 @@ export default function CreatePostModal({ onClose, onCreate, canCreateNews = fal
       setUploading(false);
       e.target.value = ""; // reset file input so same file can be added again
     }
-  }
-
-  function removeImage(idx) {
-    setImages((prev) => prev.filter((_, i) => i !== idx));
   }
 
   async function handleAddTag() {

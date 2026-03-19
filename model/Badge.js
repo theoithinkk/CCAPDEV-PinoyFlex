@@ -1,5 +1,7 @@
 import mongoose from "mongoose";
 
+const DEFAULT_BADGE_IMAGE_URL = "/uploads/badges/defaultempty.png";
+
 const badgeSchema = new mongoose.Schema(
   {
     key: {
@@ -23,7 +25,7 @@ const badgeSchema = new mongoose.Schema(
     },
     imageUrl: {
       type: String,
-      default: "",
+      default: DEFAULT_BADGE_IMAGE_URL,
       trim: true,
     },
     active: {

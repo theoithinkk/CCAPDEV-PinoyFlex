@@ -1759,6 +1759,45 @@ body {
   color: #333;
 }
 
+.profile-badge {
+  width: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.profile-badge-image {
+  width: 72px;
+  height: 72px;
+  object-fit: contain;
+  transform: scale(1.08);
+  transform-origin: center;
+  filter: drop-shadow(0 10px 14px rgba(0, 0, 0, 0.18));
+}
+
+.profile-badge-fallback {
+  width: 64px;
+  height: 64px;
+  border-radius: 16px;
+  background: var(--bg-tertiary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  border: 2px dashed var(--border);
+}
+
+.profile-badge-label {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  color: var(--text-primary);
+  font-weight: 600;
+  line-height: 1.2;
+  word-break: break-word;
+}
+
 .profile-item {
   display: block;
   padding: 12px 14px;

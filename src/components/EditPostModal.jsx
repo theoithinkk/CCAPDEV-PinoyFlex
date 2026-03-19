@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { uploadPostImage } from "../lib/api";
 
 export default function EditPostModal({ post, onClose, onSave }) {
-  const [title, setTitle] = useState(post.title);
-  const [body, setBody] = useState(post.body);
-  const [newsReference, setNewsReference] = useState(post.newsReference || "");
+  const [title] = useState(post.title);
+  const [body] = useState(post.body);
+  const [newsReference] = useState(post.newsReference || "");
   const [error, setError] = useState("");
   const isNews = post.postType === "news";
   const [images, setImages] = useState(post.images || []);
@@ -17,12 +18,8 @@ export default function EditPostModal({ post, onClose, onSave }) {
     setUploading(true); setError("");
     try {
       const uploaded = await Promise.all(files.map(async (file) => {
-        const fd = new FormData();
-        fd.append("image", file);
-        const res = await fetch("/api/posts/upload-image", { method: "POST", credentials: "include", body: fd });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || "Upload failed.");
-        return { url: data.url, name: file.name };
+        const uploadedFile = await uploadPostImage(file);
+        return { url: uploadedFile.url, name: file.name };
       }));
       setImages(prev => [...prev, ...uploaded.map(u => u.url)]);
       setImageFiles(prev => [...prev, ...uploaded.map(u => u.name)]);

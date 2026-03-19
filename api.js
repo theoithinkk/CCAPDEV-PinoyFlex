@@ -1,9 +1,6 @@
 import express from "express";
 import bcrypt from "bcryptjs";
 import mongoose from "mongoose";
-import multer from "multer";
-import path from "path";
-import fs from "fs";
 import User from "../model/User.js";
 import Post from "../model/Post.js";
 import Comment from "../model/Comment.js";
@@ -14,59 +11,47 @@ import Report from "../model/Report.js";
 import Badge from "../model/Badge.js";
 import VerificationRequest from "../model/VerificationRequest.js";
 import Notification from "../model/Notification.js";
+import { createUploadHandler, toUploadedFile } from "./utils/uploadService.js";
 
 
 const router = express.Router();
-const verificationUploadsDir = path.join(process.cwd(), "uploads", "verifications");
-const avatarUploadsDir = path.join(process.cwd(), "uploads", "avatars");
-if (!fs.existsSync(verificationUploadsDir)) {
-  fs.mkdirSync(verificationUploadsDir, { recursive: true });
-}
-if (!fs.existsSync(avatarUploadsDir)) {
-  fs.mkdirSync(avatarUploadsDir, { recursive: true });
-}
-
-function createUpload(destinationDir, maxSizeMb) {
-  return multer({
-    storage: multer.diskStorage({
-      destination: (_req, _file, cb) => cb(null, destinationDir),
-      filename: (_req, file, cb) => {
-        const ext = path.extname(file.originalname || "").slice(0, 10);
-        cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`);
-      },
-    }),
-    limits: { fileSize: maxSizeMb * 1024 * 1024 },
-  });
-}
-
-const upload = createUpload(verificationUploadsDir, 25);
-const avatarUpload = createUpload(avatarUploadsDir, 5);
-
-const postImagesDir = path.join(process.cwd(), "uploads", "posts");
-if (!fs.existsSync(postImagesDir)) fs.mkdirSync(postImagesDir, { recursive: true });
-const postImageUpload = createUpload(postImagesDir, 10); // 10MB max per image
-
-const badgeUploadsDir = path.join(process.cwd(), "uploads", "badges");
-if (!fs.existsSync(badgeUploadsDir)) fs.mkdirSync(badgeUploadsDir, { recursive: true });
-const badgeUpload = createUpload(badgeUploadsDir, 5);
-
-router.post("/posts/upload-image", requireAuth, postImageUpload.single("image"), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "No file uploaded." });
-  return res.status(201).json({ url: `/uploads/posts/${req.file.filename}` });
+const avatarFileTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const DEFAULT_BADGE_IMAGE_URL = "/uploads/badges/defaultempty.png";
+const postImageUploadMiddleware = createUploadHandler({
+  folder: "posts",
+  maxSizeMb: 10,
+  fieldName: "image",
+  uploadErrorMessage: "Image upload failed.",
+});
+const avatarUploadMiddleware = createUploadHandler({
+  folder: "avatars",
+  maxSizeMb: 5,
+  fieldName: "avatar",
+  allowedMimeTypes: avatarFileTypes,
+  uploadErrorMessage: "Avatar upload failed.",
+  missingFileMessage: "No avatar file uploaded.",
+  invalidTypeMessage: "Only JPG, PNG, WEBP, and GIF are allowed.",
+});
+const verificationUploadMiddleware = createUploadHandler({
+  folder: "verifications",
+  maxSizeMb: 25,
+  fieldName: "proof",
+  uploadErrorMessage: "Proof upload failed.",
+  missingFileMessage: "No proof file uploaded.",
+});
+const badgeUploadMiddleware = createUploadHandler({
+  folder: "badges",
+  maxSizeMb: 5,
+  fieldName: "image",
+  allowedMimeTypes: avatarFileTypes,
+  uploadErrorMessage: "Badge image upload failed.",
+  missingFileMessage: "No image file uploaded.",
+  invalidTypeMessage: "Only JPG, PNG, WEBP, and GIF are allowed.",
 });
 
-const avatarFileTypes = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
-
-const avatarUploadMiddleware = (req, res, next) => {
-  avatarUpload.single("avatar")(req, res, (err) => {
-    if (err) return res.status(400).json({ error: "Avatar upload failed." });
-    if (!req.file) return res.status(400).json({ error: "No avatar file uploaded." });
-    if (!avatarFileTypes.has(req.file.mimetype)) {
-      return res.status(400).json({ error: "Only JPG, PNG, WEBP, and GIF are allowed." });
-    }
-    return next();
-  });
-};
+router.post("/posts/upload-image", requireAuth, postImageUploadMiddleware, (req, res) => {
+  return res.status(201).json({ file: toUploadedFile(req.file, "posts") });
+});
 
 function requireAuth(req, res, next) {
   if (!req.session.user) {
@@ -94,6 +79,10 @@ function parsePagination(query, defaults = { page: 1, limit: 20, maxLimit: 100 }
 
 function normalizeUsername(value = "") {
   return String(value).trim().toLowerCase();
+}
+
+function normalizeBadgeImageUrl(imageUrl) {
+  return String(imageUrl || "").trim() || DEFAULT_BADGE_IMAGE_URL;
 }
 
 function escapeRegex(value = "") {
@@ -552,7 +541,7 @@ const userBadges = await Badge.find({ key: { $in: user.badges || [] }, active: t
       .map(badgeKey => {
         const found = userBadges.find(b => b.key === badgeKey);
         if (found) {
-          return { key: found.key, name: found.name, description: found.description || "", imageUrl: found.imageUrl || "" };
+          return { key: found.key, name: found.name, description: found.description || "", imageUrl: normalizeBadgeImageUrl(found.imageUrl) };
         }
         return null; 
       })
@@ -763,7 +752,8 @@ router.put("/workout-logs/:dateKey", requireAuth, async (req, res, next) => {
 
 router.post("/users/me/avatar", requireAuth, avatarUploadMiddleware, async (req, res, next) => {
   try {
-    const avatarPath = `/uploads/avatars/${req.file.filename}`;
+    const uploadedFile = toUploadedFile(req.file, "avatars");
+    const avatarPath = uploadedFile.url;
     const user = await User.findByIdAndUpdate(
       req.session.user.id,
       { avatar: avatarPath },
@@ -771,6 +761,7 @@ router.post("/users/me/avatar", requireAuth, avatarUploadMiddleware, async (req,
     ).lean();
     req.session.user = toSessionUser(user);
     return res.status(201).json({
+      file: uploadedFile,
       user: {
         id: user._id.toString(),
         username: user.username,
@@ -1166,7 +1157,7 @@ router.get("/badges", async (_req, res, next) => {
         key: badge.key,
         name: badge.name,
         description: badge.description || "",
-        imageUrl: badge.imageUrl || "", 
+        imageUrl: normalizeBadgeImageUrl(badge.imageUrl), 
       })),
     });
   } catch (error) {
@@ -1184,9 +1175,8 @@ router.get("/users/:username/badges", async (req, res, next) => {
   }
 });
 
-router.post("/verifications/upload", requireAuth, upload.single("proof"), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "No file uploaded." });
-  return res.status(201).json({ proofUrl: `/uploads/verifications/${req.file.filename}` });
+router.post("/verifications/upload", requireAuth, verificationUploadMiddleware, (req, res) => {
+  return res.status(201).json({ file: toUploadedFile(req.file, "verifications") });
 });
 
 router.post("/verifications", requireAuth, async (req, res, next) => {
@@ -1552,9 +1542,8 @@ router.delete("/admin/users/:id", requireAuth, requireAdmin, async (req, res, ne
   }
 });
 
-router.post("/admin/badges/upload", requireAuth, requireAdmin, badgeUpload.single("image"), (req, res) => {
-  if (!req.file) return res.status(400).json({ error: "No file uploaded." });
-  return res.status(201).json({ url: `/uploads/badges/${req.file.filename}` });
+router.post("/admin/badges/upload", requireAuth, requireAdmin, badgeUploadMiddleware, (req, res) => {
+  return res.status(201).json({ file: toUploadedFile(req.file, "badges") });
 });
 
 router.post("/admin/badges", requireAuth, requireAdmin, async (req, res, next) => {
@@ -1562,7 +1551,7 @@ router.post("/admin/badges", requireAuth, requireAdmin, async (req, res, next) =
     const key = String(req.body.key || "").trim();
     const name = String(req.body.name || "").trim();
     const description = String(req.body.description || "").trim();
-    const imageUrl = String(req.body.imageUrl || "").trim();
+    const imageUrl = normalizeBadgeImageUrl(req.body.imageUrl);
 
     if (!key || !name) return res.status(400).json({ error: "Key and name are required." });
 
@@ -1571,7 +1560,7 @@ router.post("/admin/badges", requireAuth, requireAdmin, async (req, res, next) =
 
     const badge = await Badge.create({ key, name, description, imageUrl, active: true });
     res.status(201).json({ 
-      badge: { key: badge.key, name: badge.name, description: badge.description, imageUrl: badge.imageUrl } 
+      badge: { key: badge.key, name: badge.name, description: badge.description, imageUrl: normalizeBadgeImageUrl(badge.imageUrl) } 
     });
   } catch (error) {
     next(error);
@@ -1584,12 +1573,12 @@ router.patch("/admin/badges/:key", requireAuth, requireAdmin, async (req, res, n
     const updates = {};
     if (name !== undefined) updates.name = String(name).trim();
     if (description !== undefined) updates.description = String(description).trim();
-    if (imageUrl !== undefined) updates.imageUrl = String(imageUrl).trim();
+    if (imageUrl !== undefined) updates.imageUrl = normalizeBadgeImageUrl(imageUrl);
 
     const badge = await Badge.findOneAndUpdate({ key: req.params.key }, updates, { new: true });
     if (!badge) return res.status(404).json({ error: "Badge not found." });
 
-    res.json({ badge: { key: badge.key, name: badge.name, description: badge.description, imageUrl: badge.imageUrl } });
+    res.json({ badge: { key: badge.key, name: badge.name, description: badge.description, imageUrl: normalizeBadgeImageUrl(badge.imageUrl) } });
   } catch (error) {
     next(error);
   }

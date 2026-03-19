@@ -33,12 +33,17 @@ import {
   unfollowUser,
   getWorkoutLogs,
   uploadMyAvatar,
+  uploadBadgeImage,
+  uploadVerificationProof,
+  createVerification,
   removeComment,
   removePost,
   upsertWorkoutLog,
   updateMyProfile,
   votePost,
 } from "./lib/api";
+
+const DEFAULT_BADGE_IMAGE_URL = "/uploads/badges/defaultempty.png";
 
 async function adminRequest(path, options = {}) {
   const response = await fetch(path, {
@@ -548,14 +553,10 @@ function AdminPanel({ session, posts, setPosts, onToast, onRefreshPosts, adminGe
                 if(!newBadgeName || !newBadgeKey) return onToast("Name and key are required.");
                 setNewBadgeSubmitting(true);
                 try {
-                  let imageUrl = "";
+                  let imageUrl = DEFAULT_BADGE_IMAGE_URL;
                   if (newBadgeFile) {
-                    const fd = new FormData(); 
-                    fd.append("image", newBadgeFile);
-                    const upRes = await fetch("/api/admin/badges/upload", { method: "POST", body: fd, credentials: "include" });
-                    const upData = await upRes.json();
-                    if (!upRes.ok) throw new Error(upData.error || "Image upload failed");
-                    imageUrl = upData.url;
+                    const uploadedFile = await uploadBadgeImage(newBadgeFile);
+                    imageUrl = uploadedFile.url;
                   }
                   await adminCreateBadge({ name: newBadgeName, key: newBadgeKey, description: newBadgeDesc, imageUrl });
                   onToast("Badge created successfully!");
@@ -628,12 +629,8 @@ function AdminPanel({ session, posts, setPosts, onToast, onRefreshPosts, adminGe
                         try {
                           let imageUrl = b.imageUrl;
                           if (editBadgeFile) {
-                            const fd = new FormData(); 
-                            fd.append("image", editBadgeFile);
-                            const upRes = await fetch("/api/admin/badges/upload", { method: "POST", body: fd, credentials: "include" });
-                            const upData = await upRes.json();
-                            if (!upRes.ok) throw new Error(upData.error || "Image upload failed");
-                            imageUrl = upData.url;
+                            const uploadedFile = await uploadBadgeImage(editBadgeFile);
+                            imageUrl = uploadedFile.url;
                           }
                           await adminUpdateBadge(b.key, { name: editBadgeName, description: editBadgeDesc, imageUrl });
                           onToast("Badge updated successfully!");
@@ -1152,7 +1149,8 @@ export default function App() {
         newsReference: newsReference || "",
       });
       if (created.postType === "news") {
-        setFeaturedNews(created);
+        const data = await getFeaturedNews();
+        setFeaturedNews(data.news || created);
       } else {
         setPosts((prev) => [created, ...prev]);
         refreshSearchMeta();
@@ -1709,19 +1707,12 @@ export default function App() {
                                 setVerifyError("");
                                 setVerifySuccess(false);
                                 try {
-                                  const fd = new FormData();
-                                  fd.append("proof", verifyFile);
-                                  const uploadRes = await fetch("/api/verifications/upload", { method: "POST", credentials: "include", body: fd });
-                                  const uploadData = await uploadRes.json();
-                                  if (!uploadRes.ok) throw new Error(uploadData.error || "Upload failed.");
-                                  const submitRes = await fetch("/api/verifications", {
-                                    method: "POST",
-                                    credentials: "include",
-                                    headers: { "Content-Type": "application/json" },
-                                    body: JSON.stringify({ badgeKey: selectedBadge, proofUrl: uploadData.proofUrl, note: verifyNote }),
+                                  const uploadedFile = await uploadVerificationProof(verifyFile);
+                                  const submitData = await createVerification({
+                                    badgeKey: selectedBadge,
+                                    proofUrl: uploadedFile.url,
+                                    note: verifyNote,
                                   });
-                                  const submitData = await submitRes.json();
-                                  if (!submitRes.ok) throw new Error(submitData.error || "Submission failed.");
                                   setMyVerifications(prev => [submitData.verification, ...prev]);
                                   setVerifySuccess(true);
                                   setVerifyFile(null);

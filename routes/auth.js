@@ -27,6 +27,8 @@ router.post("/login", async (req, res, next) => {
       id: user._id.toString(),
       username: user.username,
       avatar: user.avatar,
+      role: user.role || "user",
+      badges: user.badges || [],
     };
 
     res.redirect("/");
@@ -63,6 +65,8 @@ router.post("/register", async (req, res, next) => {
       id: user._id.toString(),
       username: user.username,
       avatar: user.avatar,
+      role: user.role || "user",
+      badges: user.badges || [],
     };
 
     res.redirect("/");

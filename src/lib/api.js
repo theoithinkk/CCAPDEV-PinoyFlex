@@ -1,10 +1,13 @@
 async function request(path, options = {}) {
+  const isFormDataBody = options.body instanceof FormData;
   const response = await fetch(path, {
     credentials: "include",
-    headers: {
-      "Content-Type": "application/json",
-      ...(options.headers || {}),
-    },
+    headers: isFormDataBody
+      ? { ...(options.headers || {}) }
+      : {
+          "Content-Type": "application/json",
+          ...(options.headers || {}),
+        },
     ...options,
   });
 
@@ -20,6 +23,42 @@ async function request(path, options = {}) {
   }
 
   return data;
+}
+
+async function uploadFile(path, fieldName, file, fallbackMessage = "Upload failed") {
+  const body = new FormData();
+  body.append(fieldName, file);
+
+  const response = await fetch(path, {
+    method: "POST",
+    credentials: "include",
+    body,
+  });
+
+  let data = {};
+  try {
+    data = await response.json();
+  } catch {
+    data = {};
+  }
+
+  if (!response.ok) {
+    throw new Error(data?.error || fallbackMessage);
+  }
+
+  if (data?.file) {
+    return data.file;
+  }
+
+  // Backward compatibility with older backend responses while dev servers restart.
+  if (typeof data?.url === "string" && data.url.trim()) {
+    return { url: data.url.trim() };
+  }
+  if (typeof data?.proofUrl === "string" && data.proofUrl.trim()) {
+    return { url: data.proofUrl.trim() };
+  }
+
+  throw new Error("Upload succeeded but no file URL was returned.");
 }
 
 export async function getSession() {
@@ -121,17 +160,17 @@ export async function updateMyProfile(updates) {
 }
 
 export async function uploadMyAvatar(file) {
-  const body = new FormData();
-  body.append("avatar", file);
-
-  const response = await fetch("/api/users/me/avatar", {
+  const form = new FormData();
+  form.append("avatar", file);
+  const data = await request("/api/users/me/avatar", {
     method: "POST",
-    credentials: "include",
-    body,
+    body: form,
   });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data?.error || "Avatar upload failed");
   return data.user;
+}
+
+export function uploadPostImage(file) {
+  return uploadFile("/api/posts/upload-image", "image", file, "Image upload failed.");
 }
 
 export async function getTags() {
@@ -252,15 +291,9 @@ export async function getMyVerifications(page = 1, limit = 20) {
 }
 
 export async function uploadVerificationProof(file) {
-  const body = new FormData();
-  body.append("proof", file);
+  return uploadFile("/api/verifications/upload", "proof", file, "Upload failed.");
+}
 
-  const response = await fetch("/api/verifications/upload", {
-    method: "POST",
-    credentials: "include",
-    body,
-  });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data?.error || "Upload failed");
-  return data.proofUrl;
+export function uploadBadgeImage(file) {
+  return uploadFile("/api/admin/badges/upload", "image", file, "Image upload failed.");
 }

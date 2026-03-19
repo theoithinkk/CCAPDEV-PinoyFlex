@@ -64,11 +64,45 @@ const SAMPLE_USERS = [
 const DEFAULT_TAGS = ["Form", "Meal Prep", "Physique", "Beginners", "General", "Success"];
 
 const DEFAULT_BADGES = [
-  { key: "bench-225", name: "225 lb Bench", description: "Verified 225 lb bench press milestone." },
-  { key: "squat-315", name: "315 lb Squat", description: "Verified 315 lb squat milestone." },
-  { key: "deadlift-405", name: "405 lb Deadlift", description: "Verified 405 lb deadlift milestone." },
+  {
+    key: "bench-225",
+    name: "225 lb Bench",
+    description: "Verified 225 lb bench press milestone.",
+    imageUrl: "/uploads/badges/bench225badge.png",
+  },
+  {
+    key: "squat-315",
+    name: "315 lb Squat",
+    description: "Verified 315 lb squat milestone.",
+    imageUrl: "/uploads/badges/squat315badge.png",
+  },
+  {
+    key: "deadlift-405",
+    name: "405 lb Deadlift",
+    description: "Verified 405 lb deadlift milestone.",
+    imageUrl: "/uploads/badges/deadlift405badge.png",
+  },
   { key: "bodyweight-pullup-20", name: "20 Pull-Ups", description: "Verified strict 20 pull-ups." },
 ];
+
+async function syncDefaultBadges() {
+  await Promise.all(
+    DEFAULT_BADGES.map((badge) =>
+      Badge.updateOne(
+        { key: badge.key },
+        {
+          $set: {
+            name: badge.name,
+            description: badge.description,
+            imageUrl: badge.imageUrl || "",
+            active: true,
+          },
+        },
+        { upsert: true }
+      )
+    )
+  );
+}
 
 const SAMPLE_POSTS = [
   {
@@ -193,6 +227,7 @@ export async function seedDatabase(options = {}) {
   };
 
   if (!force && !shouldSeed(counts)) {
+    await syncDefaultBadges();
     console.log("Seed skipped: dataset already present.");
     return { seeded: false, reason: "already_seeded", counts };
   }
@@ -211,7 +246,7 @@ export async function seedDatabase(options = {}) {
   ]);
 
   await Tag.insertMany(DEFAULT_TAGS.map((name) => ({ name, isDefault: true })));
-  await Badge.insertMany(DEFAULT_BADGES);
+  await syncDefaultBadges();
 
   const userMap = new Map();
   for (const user of SAMPLE_USERS) {
