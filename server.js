@@ -17,6 +17,8 @@ const distPath = path.join(__dirname, "dist");
 const builtFrontend = fs.existsSync(distPath);
 
 const app = express();
+app.set("trust proxy", 1);
+
 const PORT = Number(process.env.PORT || 3000);
 const MONGODB_URI = process.env.MONGODB_URI || "mongodb://127.0.0.1:27017/pinoyflex";
 const SESSION_SECRET = process.env.SESSION_SECRET || "dev_secret_change_me";
