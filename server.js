@@ -1,6 +1,7 @@
 import express from "express";
 import session from "express-session";
 import path from "path";
+import fs from "fs";
 import { fileURLToPath } from "url";
 
 import { connectDB } from "./model/db.js";
@@ -12,6 +13,8 @@ import apiRoutes from "./routes/api.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+const distPath = path.join(__dirname, "dist");
+const builtFrontend = fs.existsSync(distPath);
 
 const app = express();
 const PORT = Number(process.env.PORT || 3000);
@@ -60,6 +63,9 @@ app.use(
 );
 
 app.use(express.static(path.join(__dirname, "public")));
+if (builtFrontend) {
+  app.use(express.static(distPath));
+}
 app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 app.use("/api/auth", basicRateLimit({ windowMs: 60 * 1000, max: 30, keyPrefix: "auth" }));
 app.use("/api", basicRateLimit({ windowMs: 60 * 1000, max: 400, keyPrefix: "api" }));
@@ -101,6 +107,22 @@ app.use("/auth", authRoutes);
 app.use("/posts", postRoutes);
 app.use("/users", userRoutes);
 app.use("/api", apiRoutes);
+
+if (builtFrontend) {
+  app.get("*", (req, res, next) => {
+    if (
+      req.path.startsWith("/api") ||
+      req.path.startsWith("/auth") ||
+      req.path.startsWith("/posts") ||
+      req.path.startsWith("/users") ||
+      req.path.startsWith("/uploads")
+    ) {
+      return next();
+    }
+
+    return res.sendFile(path.join(distPath, "index.html"));
+  }) 
+}
 
 app.use((err, req, res, _next) => {
   console.error(err);
