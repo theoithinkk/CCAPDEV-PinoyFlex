@@ -1,17 +1,26 @@
-import fs from "fs";
+import { v2 as cloudinary } from "cloudinary";
+import { CloudinaryStorage } from "multer-storage-cloudinary";
 import multer from "multer";
-import path from "path";
 
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key:    process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
+
+/* FUNCTION NOT USED ANYMORE
 function ensureDir(dirPath) {
   if (!fs.existsSync(dirPath)) {
     fs.mkdirSync(dirPath, { recursive: true });
   }
-}
+} */
 
+/* FUNCTION NOT USED ANYMORE
 function safeExt(originalName = "") {
   return path.extname(originalName).slice(0, 10);
-}
+} */
 
+/* FUNCTION NOT USED ANYMORE
 function cleanupFile(filePath) {
   if (!filePath) return;
   try {
@@ -19,7 +28,7 @@ function cleanupFile(filePath) {
   } catch {
     // Ignore cleanup failures for invalid uploads.
   }
-}
+} */
 
 export function createUploadHandler({
   folder,
@@ -30,18 +39,19 @@ export function createUploadHandler({
   missingFileMessage = "No file uploaded.",
   invalidTypeMessage = "Invalid file type.",
 }) {
-  const destinationDir = path.join(process.cwd(), "uploads", folder);
-  ensureDir(destinationDir);
+const storage = new CloudinaryStorage({
+  cloudinary,
+  params: {
+    folder: `pinoyflex/${folder}`,
+    allowed_formats: ["jpg", "jpeg", "png", "webp", "gif"],
+    transformation: [{ quality: "auto" }],
+  },
+});
 
-  const uploader = multer({
-    storage: multer.diskStorage({
-      destination: (_req, _file, cb) => cb(null, destinationDir),
-      filename: (_req, file, cb) => {
-        cb(null, `${Date.now()}-${Math.round(Math.random() * 1e9)}${safeExt(file.originalname)}`);
-      },
-    }),
-    limits: { fileSize: maxSizeMb * 1024 * 1024 },
-  });
+const uploader = multer({
+  storage,
+  limits: { fileSize: maxSizeMb * 1024 * 1024 },
+});
 
   return (req, res, next) => {
     uploader.single(fieldName)(req, res, (err) => {
@@ -52,7 +62,7 @@ export function createUploadHandler({
         return res.status(400).json({ error: missingFileMessage });
       }
       if (allowedMimeTypes && !allowedMimeTypes.has(req.file.mimetype)) {
-        cleanupFile(req.file.path);
+        cloudinary.uploader.destroy(req.file.filename);
         return res.status(400).json({ error: invalidTypeMessage });
       }
       return next();
@@ -62,7 +72,7 @@ export function createUploadHandler({
 
 export function toUploadedFile(file, folder) {
   return {
-    url: `/uploads/${folder}/${file.filename}`,
+    url: file.path,
     filename: file.filename,
     originalName: file.originalname,
     mimeType: file.mimetype,
