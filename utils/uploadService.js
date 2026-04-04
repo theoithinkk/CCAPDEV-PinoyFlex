@@ -1,8 +1,5 @@
 import { v2 as cloudinary } from "cloudinary";
-import pkg from "multer-storage-cloudinary";
 import multer from "multer";
-
-const { CloudinaryStorage } = pkg;
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
@@ -41,43 +38,41 @@ export function createUploadHandler({
   missingFileMessage = "No file uploaded.",
   invalidTypeMessage = "Invalid file type.",
 }) {
-const storage = new CloudinaryStorage({
-  cloudinary,
-  params: {
-    folder: `pinoyflex/${folder}`,
-    allowed_formats: ["jpg", "jpeg", "png", "webp", "gif"],
-    transformation: [{ quality: "auto" }],
-  },
-});
 
-const uploader = multer({
-  storage,
-  limits: { fileSize: maxSizeMb * 1024 * 1024 },
-});
+const uploader = multer({ storage: multer.memoryStorage() });
 
   return (req, res, next) => {
-    uploader.single(fieldName)(req, res, (err) => {
-      if (err) {
-        return res.status(400).json({ error: uploadErrorMessage });
-      }
-      if (!req.file) {
-        return res.status(400).json({ error: missingFileMessage });
-      }
+    uploader.single(fieldName)(req, res, async (err) => {
+      if (err) return res.status(400).json({ error: uploadErrorMessage });
+      if (!req.file) return res.status(400).json({ error: missingFileMessage });
       if (allowedMimeTypes && !allowedMimeTypes.has(req.file.mimetype)) {
-        cloudinary.uploader.destroy(req.file.filename);
         return res.status(400).json({ error: invalidTypeMessage });
       }
-      return next();
+
+      try {
+        const result = await new Promise((resolve, reject) => {
+          cloudinary.uploader.upload_stream(
+            { folder: `pinoyflex/${folder}` },
+            (error, result) => error ? reject(error) : resolve(result)
+          ).end(req.file.buffer);
+        });
+
+        req.file.cloudinaryUrl = result.secure_url;
+        req.file.cloudinaryId  = result.public_id;
+        return next();
+      } catch {
+        return res.status(500).json({ error: uploadErrorMessage });
+      }
     });
   };
 }
 
 export function toUploadedFile(file, folder) {
   return {
-    url: file.path,
-    filename: file.filename,
+    url:          file.cloudinaryUrl,
+    filename:     file.cloudinaryId,
     originalName: file.originalname,
-    mimeType: file.mimetype,
-    size: file.size,
+    mimeType:     file.mimetype,
+    size:         file.size,
   };
 }
