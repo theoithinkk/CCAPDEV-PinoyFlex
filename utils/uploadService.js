@@ -52,7 +52,10 @@ const uploader = multer({ storage: multer.memoryStorage() });
       try {
         const result = await new Promise((resolve, reject) => {
           cloudinary.uploader.upload_stream(
-            { folder: `pinoyflex/${folder}` },
+            { 
+              folder: `pinoyflex/${folder}`,
+              resource_type: "auto",  // this tells Cloudinary to auto-detect image OR video
+            },
             (error, result) => error ? reject(error) : resolve(result)
           ).end(req.file.buffer);
         });
