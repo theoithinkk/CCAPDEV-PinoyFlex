@@ -68,21 +68,24 @@ const DEFAULT_BADGES = [
     key: "bench-225",
     name: "225 lb Bench",
     description: "Verified 225 lb bench press milestone.",
-    imageUrl: "/uploads/badges/bench225badge.png",
+    imageUrl: "https://res.cloudinary.com/dwca0tolm/image/upload/v1775470295/1000024680_haimhh.png",
   },
   {
     key: "squat-315",
     name: "315 lb Squat",
     description: "Verified 315 lb squat milestone.",
-    imageUrl: "/uploads/badges/squat315badge.png",
+    imageUrl: "https://res.cloudinary.com/dwca0tolm/image/upload/v1775470294/1000024677_ddrqnu.png",
   },
   {
     key: "deadlift-405",
     name: "405 lb Deadlift",
     description: "Verified 405 lb deadlift milestone.",
-    imageUrl: "/uploads/badges/deadlift405badge.png",
+    imageUrl: "https://res.cloudinary.com/dwca0tolm/image/upload/v1775470295/1000024679_lhfad3.png",
   },
-  { key: "bodyweight-pullup-20", name: "20 Pull-Ups", description: "Verified strict 20 pull-ups." },
+  { key: "bodyweight-pullup-20", 
+    name: "20 Pull-Ups", 
+    description: "Verified strict 20 pull-ups." ,
+    imageUrl: "https://res.cloudinary.com/dwca0tolm/image/upload/v1775470294/1000024681_ztiij0.png" },
 ];
 
 async function syncDefaultBadges() {
