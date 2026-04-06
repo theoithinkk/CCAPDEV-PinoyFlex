@@ -1,30 +1,31 @@
-# PinoyFlex Backend
+# PinoyFlex
 
-PinoyFlex uses a Node.js + Express + MongoDB backend with session auth.
+PinoyFlex is a full-stack fitness community app built with React, Vite, Node.js, Express, and MongoDB.
 
-## Core Features
+The project uses:
 
-- Auth and profile management with role support (`user`, `admin`)
-- Posts, comments, voting, tags, workout logs
-- Follows/followers
-- Search API
-- Trending and explore feeds
-- Reports + moderation actions
-- Badge catalog + verification requests
-- Notifications
-- Basic API/auth rate limiting
+- MongoDB Atlas for the database
+- Render for deployment
+- Express sessions for authentication
 
-## Canonical Backend
+## Stack
 
-Use the root backend only:
+- Frontend: React + Vite
+- Backend: Node.js + Express
+- Database: MongoDB Atlas + Mongoose
+- Auth: `express-session`
+- File uploads/assets: local `uploads/` plus Cloudinary-hosted badge assets
 
-- Entry point: `server.js`
-- Models: `model/`
-- Routes: `routes/`
+## Project Structure
 
-There is an older duplicate backend under `server/`; treat it as legacy.
+- Main backend entry: `server.js`
+- Frontend source: `src/`
+- Database models: `model/`
+- API and page routes: `routes/`
 
-## Setup
+There is also an older duplicate backend inside `server/`. Treat that folder as legacy and use the root `server.js` backend.
+
+## Local Development
 
 1. Install dependencies:
 
@@ -32,19 +33,72 @@ There is an older duplicate backend under `server/`; treat it as legacy.
 npm install
 ```
 
-2. Make sure MongoDB is running:
+2. Create environment variables for local development.
 
-```text
-mongodb://127.0.0.1:27017/pinoyflex
+Required:
+
+```env
+MONGODB_URI=your-mongodb-atlas-connection-string
+SESSION_SECRET=your-session-secret
 ```
 
-3. Start backend:
+Optional:
+
+```env
+PORT=3000
+NODE_ENV=development
+```
+
+3. Start the backend:
 
 ```bash
 npm run server
 ```
 
-Optional: seed sample data manually:
+4. In a separate terminal, start the frontend:
+
+```bash
+npm run dev
+```
+
+5. Open the app:
+
+```text
+Frontend: http://localhost:5173
+Backend:  http://localhost:3000
+```
+
+## Production Deployment
+
+The app is deployed on Render and connects to MongoDB Atlas.
+
+Because `server.js` serves the built Vite frontend from `dist/`, the typical Render setup is:
+
+- Build command: `npm install && npm run build`
+- Start command: `node server.js`
+
+Render environment variables:
+
+- `MONGODB_URI`
+- `SESSION_SECRET`
+- `NODE_ENV=production`
+- `PORT` is provided by Render
+
+## Database
+
+This project does not rely on a local MongoDB instance in production. Use a MongoDB Atlas connection string in `MONGODB_URI`.
+
+Example format:
+
+```env
+MONGODB_URI=mongodb+srv://<username>:<password>@<cluster>/<database>?retryWrites=true&w=majority
+```
+
+## Seeding
+
+The app seeds default data on startup when the database is empty or incomplete.
+
+You can also run the seed script manually:
 
 ```bash
 npm run seed
@@ -56,32 +110,34 @@ Force reset and reseed all collections:
 npm run seed:force
 ```
 
-4. Start frontend:
-
-```bash
-npm run dev
-```
-
-5. Open:
-
-```text
-Frontend: http://localhost:5173
-Backend:  http://localhost:3000
-```
-
 ## Seeded Accounts
 
 All seeded users use password `1234`.
 
 - Admin: `theo`
 - Users: `marc`, `nathaniel`, `ian`, `arturo`
+- Editorial: `pinoyflex_editorial`
+
+## Main Features
+
+- Auth and profile management with role support
+- Posts, comments, voting, and tags
+- Workout logs
+- Follow and follower system
+- Search API
+- Trending and explore feeds
+- Reports and moderation tools
+- Badge catalog and verification requests
+- Notifications
+- Basic API and auth rate limiting
 
 ## Main API Additions
 
 - `GET /api/search?q=...`
 - `GET /api/feed/trending`
 - `GET /api/feed/explore`
-- `POST/DELETE /api/users/:username/follow`
+- `POST /api/users/:username/follow`
+- `DELETE /api/users/:username/follow`
 - `GET /api/users/:username/followers`
 - `GET /api/users/:username/following`
 - `POST /api/reports`
@@ -92,5 +148,7 @@ All seeded users use password `1234`.
 - `POST /api/verifications/upload`
 - `POST /api/verifications`
 - `GET /api/verifications/me`
-- `GET/PATCH /api/admin/reports*`
-- `GET/PATCH /api/admin/verifications*`
+- `GET /api/admin/reports`
+- `PATCH /api/admin/reports/:id`
+- `GET /api/admin/verifications`
+- `PATCH /api/admin/verifications/:id`
