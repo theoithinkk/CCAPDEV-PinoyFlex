@@ -724,6 +724,7 @@ export default function App() {
   const [editPostData, setEditPostData] = useState(null);
   const [isEditingProfile, setIsEditingProfile] = useState(false);
   const [viewingUser, setViewingUser] = useState(null); // For #/user/:username
+  const [profileLoading, setProfileLoading] = useState(false);
   const [profilePosts, setProfilePosts] = useState([]);
   const [profileComments, setProfileComments] = useState([]);
   const [profileHistory, setProfileHistory] = useState([]);
@@ -1050,17 +1051,19 @@ export default function App() {
       setProfileHistory([]);
       return undefined;
     }
-
+    setProfileLoading(true);
     getUserProfile(username)
       .then((data) => {
         if (!mounted) return;
-        setViewingUser(data.user || null);
+        setProfileLoading(false);
+        setViewingUser(data.user || null);  
         setProfilePosts(data.posts || []);
         setProfileComments(data.comments || []);
         setProfileHistory(data.history || []);
       })
       .catch(() => {
         if (!mounted) return;
+        setProfileLoading(false);
         setViewingUser(null);
         setProfilePosts([]);
         setProfileComments([]);
@@ -1837,6 +1840,11 @@ export default function App() {
                 </div>
               ) : route.startsWith("#/user/") ? (
                 // === VIEW USER PROFILE ===
+                profileLoading ? (
+                  <div className="block" style={{ textAlign: "center", padding: "3rem" }}>
+                    <p className="detail-muted">Loading profile...</p>
+                  </div>
+                ) : (
                 <Profile 
                     user={viewingUser} 
                     isCurrentUser={session?.username === viewingUser?.username}
@@ -1850,7 +1858,8 @@ export default function App() {
                     userComments={profileComments}
                     userHistory={profileHistory}
                 />
-              ) : route === "#/profile" ? (
+                )
+              ): route === "#/profile" ? (
                 // === MY PROFILE ===
                 <Profile 
                     user={viewingUser || session} 
